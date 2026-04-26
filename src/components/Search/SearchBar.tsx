@@ -10,6 +10,7 @@ const SearchBar: React.FC = () => {
   const [results, setResults] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { setPlaylist, setCurrentSong, play } = usePlayerStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,7 @@ const SearchBar: React.FC = () => {
     setShowResults(true);
 
     try {
+      setError(null);
       let songs = await searchSongs(query);
       // Always fetch cover URLs via /song/detail
       if (songs.length > 0) {
@@ -40,7 +42,11 @@ const SearchBar: React.FC = () => {
         });
       }
       setResults(songs);
+      if (songs.length === 0) {
+        setError('未找到相关歌曲，请稍后重试');
+      }
     } catch (err) {
+      setError(String(err));
       console.error('Search failed:', err);
     } finally {
       setLoading(false);
@@ -97,6 +103,8 @@ const SearchBar: React.FC = () => {
         <div className={styles.results}>
           {loading ? (
             <div className={styles.loading}>搜索中...</div>
+          ) : error ? (
+            <div className={styles.noResults}>{error}</div>
           ) : results.length === 0 ? (
             <div className={styles.noResults}>未找到相关歌曲</div>
           ) : (

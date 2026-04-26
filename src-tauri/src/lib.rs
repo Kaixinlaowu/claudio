@@ -28,8 +28,6 @@ impl Serialize for DbError {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NeteaseSearchResult {
     pub songs: Vec<NeteaseSong>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub debug_info: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -332,6 +330,22 @@ fn load_cookie() -> String {
         }
     }
 
+    // Try current working directory
+    let env_path = std::path::PathBuf::from(".env");
+    if let Some(cookie) = try_load_env(&env_path) {
+        return cookie;
+    }
+
+    // Try resources directory (for bundled resources)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let env_path = exe_dir.join("resources").join(".env");
+            if let Some(cookie) = try_load_env(&env_path) {
+                return cookie;
+            }
+        }
+    }
+
     log::warn!("No NETEASE_COOKIE found, using fallback hardcoded cookie");
     // Fallback hardcoded cookie for packaged builds
     String::from("MUSIC_U=007E7FBB4BEB13E354FE205035D7CEA1E6207E39EA1036A601BEEE9D5476A4027EBB51733F45FC3E724BFE926810E1C7C6305E739459921355DEFFD14B4D05AF24D4C6D6A7895A998DA6D84702D22EBBE86C917F42FA9ED24F9E90E7C9BCF182F17D9E60A7240A2FD034652889ABC077EBC5F4627B018F397B927D8434E6256BB4F64B6CD11C07961511D92C6684FE6B6DF2D8DC668B36E56CB587A6B316EEA6F13C17D57DAE4B938B37A3E3BC462EBFF59341D803442F4D7F0E7A10EA8A873CDC94BFFE59D59E18D0CFC30AF0A47ABBCC0C8DBB0FAA1394858EB77E39A680EDD58CD0F310ADCD3054074038A199C42A6EA77081F18EEDA4ED5D3E4CF8B13D44573468CA9EB3111B98D0E3EA88204B6FD5F44BDD74F2B85906993CB7138E11A041E03769554DA7D396EEE5A9CD7B20B0677202DDB57DF495B8C887223F98F8571BF6206929C9C9A5C97F1E2C7245561902E4BD3B8986585F7F3A13EB04DC97D87D5288068EE24BB06224B7D58A7D4941BC2C8C3A0AC840B21ABEE37C0D6F84D210B8435B9DCE20EDBFA6FBADB4D43AB814A19E0CB77BA184729B838E6A1E9E5FE7")
@@ -340,7 +354,8 @@ fn load_cookie() -> String {
 // Netease API Tauri commands - using IPC instead of HTTP
 #[tauri::command]
 async fn netease_search(keywords: String) -> Result<NeteaseSearchResult, String> {
-    log::info!("[NETEASE_CMD] search called with: {}", keywords);
+    log::info!("[NETEASE_CMD] netease_search command called with keywords: {}", keywords);
+    log::info!("[NETEASE_CMD] This is the IPC command - NOT the HTTP server");
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
@@ -402,38 +417,75 @@ async fn netease_search(keywords: String) -> Result<NeteaseSearchResult, String>
     let songs: Vec<NeteaseSong> = songs_array
         .iter()
         .filter_map(|song| {
-            Some(NeteaseSong {
-                id: song.get("id")?.as_u64()?,
-                name: song.get("name")?.as_str()?.to_string(),
-                artists: song.get("artists")?
-                    .as_array()?
-                    .iter()
-                    .filter_map(|a| {
-                        Some(NeteaseArtist {
-                            name: a.get("name")?.as_str()?.to_string(),
-                        })
-                    })
-                    .collect(),
-                album: NeteaseAlbum {
-                    name: song.get("album")?.get("name")?.as_str().map(|s| s.to_string()).unwrap_or_default(),
-                    pic_url: song.get("album")?.get("picUrl")?.as_str().map(|s| s.to_string()),
-                },
-                duration: song.get("duration")?.as_u64().unwrap_or(0),
-            })
+            let id = match song.get("id") {
+                Some(v) => {
+                    if let Some(n) = v.as_u64() {
+                        Some(n)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse().ok()
+                    } else {
+                        None
+                    }
+                }
+                None => None
+            };
+
+            let name = match song.get("name") {
+                Some(v) => v.as_str().map(|s| s.to_string()),
+                None => None
+            };
+
+            let artists: Vec<NeteaseArtist> = match song.get("artists") {
+                Some(v) => v.as_array().map(|arr| {
+                    arr.iter().filter_map(|a| {
+                        a.get("name").and_then(|n| n.as_str()).map(|s| NeteaseArtist { name: s.to_string() })
+                    }).collect()
+                }).unwrap_or_default(),
+                None => vec![]
+            };
+
+            let album_name = match song.get("album") {
+                Some(v) => v.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()).unwrap_or_default(),
+                None => String::new()
+            };
+
+            let album_pic = match song.get("album") {
+                Some(v) => v.get("picUrl").and_then(|n| n.as_str()).map(|s| s.to_string()),
+                None => None
+            };
+
+            let duration = match song.get("duration") {
+                Some(v) => v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())).unwrap_or(0),
+                None => 0
+            };
+
+            match (id, name) {
+                (Some(id), Some(name)) => Some(NeteaseSong {
+                    id,
+                    name,
+                    artists,
+                    album: NeteaseAlbum {
+                        name: album_name,
+                        pic_url: album_pic,
+                    },
+                    duration,
+                }),
+                _ => None
+            }
         })
         .collect();
 
     log::info!("[NETEASE_CMD] Built {} NeteaseSong structs", songs.len());
 
-    // Serialize to JSON string to debug
-    let debug_json = serde_json::to_string(&NeteaseSearchResult {
-        songs: songs.clone(),
-        debug_info: Some(format!("Built {} songs from JSON with {} array items", songs.len(), songs_array.len()))
-    }).unwrap_or_else(|_| "序列化失败".to_string());
+    // Log the first song for debugging
+    if let Some(first) = songs.first() {
+        log::info!("[NETEASE_CMD] First song: id={}, name={}, artists={}", first.id, first.name, first.artists.len());
+    }
 
-    log::info!("[NETEASE_CMD] Debug JSON preview: {}", &debug_json[..std::cmp::min(300, debug_json.len())]);
+    let result = NeteaseSearchResult { songs };
+    log::info!("[NETEASE_CMD] Returning result with {} songs", result.songs.len());
 
-    Ok(NeteaseSearchResult { songs, debug_info: Some(debug_json) })
+    Ok(result)
 }
 
 #[tauri::command]

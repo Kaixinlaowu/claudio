@@ -26,31 +26,18 @@ function ensureHttps(url: string): string {
 
 // Search songs using Tauri IPC
 export async function searchSongs(keyword: string): Promise<Song[]> {
-  console.log('[netease.ts] Calling netease_search via IPC:', keyword);
   try {
-    const rawResult: any = await invoke('netease_search', { keywords: keyword });
-    console.log('[netease.ts] Raw invoke result type:', typeof rawResult);
-    console.log('[netease.ts] Raw invoke result:', JSON.stringify(rawResult).slice(0, 500));
+    const result: any = await invoke('netease_search', { keywords: keyword });
 
-    // Handle Tauri Result wrapper - Tauri 2.x wraps Result as {Ok: value} or {Err: error}
-    let result = rawResult;
-    if (rawResult && typeof rawResult === 'object') {
-      if ('Ok' in rawResult) {
-        result = rawResult.Ok;
-      } else if ('ok' in rawResult) {
-        result = rawResult.ok;
-      }
-    }
-
-    // Also handle case where songs are at top level directly
     let songs: NeteaseSong[] = [];
     if (result && typeof result === 'object') {
-      if (Array.isArray((result as any).songs)) {
-        songs = (result as any).songs;
+      if (Array.isArray(result.songs)) {
+        songs = result.songs;
       } else if (Array.isArray(result)) {
-        // songs were returned directly as an array
-        songs = result as NeteaseSong[];
+        songs = result;
       }
+    } else if (Array.isArray(result)) {
+      songs = result;
     }
 
     return songs.map((s: NeteaseSong) => ({
@@ -70,9 +57,7 @@ export async function searchSongs(keyword: string): Promise<Song[]> {
 
 // Get song URL using Tauri IPC
 export async function getSongUrl(id: string): Promise<string> {
-  console.log('[netease.ts] Calling netease_song_url via IPC:', id);
   const url = await invoke<string>('netease_song_url', { id });
-  console.log('[netease.ts] netease_song_url result:', url ? 'has URL' : 'no URL');
   return ensureHttps(url || '');
 }
 
@@ -82,9 +67,7 @@ export async function getSongsDetails(ids: string[]): Promise<Map<string, { cove
   if (ids.length === 0) return result;
 
   try {
-    console.log('[netease.ts] Calling netease_song_detail via IPC:', ids.length, 'ids');
     const details = await invoke<NeteaseSongDetail[]>('netease_song_detail', { ids });
-    console.log('[netease.ts] netease_song_detail result:', details?.length, 'songs');
 
     for (const song of details || []) {
       let coverUrl = song.album?.pic_url || '';
@@ -102,9 +85,7 @@ export async function getSongsDetails(ids: string[]): Promise<Map<string, { cove
   return result;
 }
 
-export async function getLyric(id: string): Promise<string> {
-  // Not implemented via IPC yet - fallback to empty
-  console.log('[netease.ts] getLyric not implemented via IPC for:', id);
+export async function getLyric(_id: string): Promise<string> {
   return '';
 }
 
