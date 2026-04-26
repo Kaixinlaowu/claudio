@@ -1,0 +1,130 @@
+.searchContainer {
+  position: relative;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--bg-highlight);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full);
+  padding: var(--space-3) var(--space-4);
+  transition: background var(--duration-fast);
+}
+
+.searchBar:focus-within {
+  background: var(--bg-highlight);
+}
+
+.searchIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.searchInput {
+  flex: 1;
+  font-size: var(--text-sm);
+  background: transparent;
+  outline: none;
+}
+
+.clearButton {
+  background: none;
+  border: none;
+  padding: var(--space-1);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-fast), background var(--duration-fast);
+}
+
+.clearButton:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.results {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: var(--space-5);
+  right: var(--space-5);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: var(--shadow-lg);
+  animation: scaleIn var(--duration-normal) var(--ease-out-expo);
+}
+
+.loading,
+.noResults {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.resultItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  animation: slideUp var(--duration-normal) var(--ease-out-expo);
+  animation-fill-mode: backwards;
+}
+
+.resultItem:hover {
+  background: var(--bg-hover);
+}
+
+.resultItem + .resultItem {
+  border-top: 1px solid var(--bg-highlight);
+}
+
+.thumbnail {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.songInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.songName {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.songMeta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duration {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}

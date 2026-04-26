@@ -1,0 +1,4 @@
+/* Base reset - globals.css handles all styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+}

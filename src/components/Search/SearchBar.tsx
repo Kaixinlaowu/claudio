@@ -1,0 +1,125 @@
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Search, X } from 'lucide-react';
+import styles from './SearchBar.module.css';
+import { searchSongs, getSongUrl, getSongsDetails, formatDuration } from '../../lib/api/netease';
+import type { Song } from '../../lib/ai/types';
+import usePlayerStore from '../../lib/state/playerStore';
+
+const SearchBar: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const { setPlaylist, setCurrentSong, play } = usePlayerStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showResults) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [showResults]);
+
+  const handleSearch = useCallback(async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setShowResults(true);
+
+    try {
+      let songs = await searchSongs(query);
+      // Always fetch cover URLs via /song/detail
+      if (songs.length > 0) {
+        const details = await getSongsDetails(songs.map((s) => s.id));
+        songs = songs.map((s) => {
+          const detail = details.get(s.id);
+          return detail ? { ...s, coverUrl: detail.coverUrl, duration: detail.duration || s.duration } : s;
+        });
+      }
+      setResults(songs);
+    } catch (err) {
+      console.error('Search failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  const handlePlaySong = useCallback(async (song: Song, allResults: Song[]) => {
+    const url = await getSongUrl(song.id);
+    const songWithUrl = { ...song, url };
+
+    // Add the clicked song + up to 9 more from search results
+    const remaining = allResults
+      .filter((s) => s.id !== song.id)
+      .slice(0, 9);
+    const playlist = [songWithUrl, ...remaining];
+
+    setPlaylist(playlist);
+    setCurrentSong(songWithUrl);
+    play();
+    setShowResults(false);
+    setQuery('');
+  }, [setPlaylist, setCurrentSong, play]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+    if (e.key === 'Escape') {
+      setShowResults(false);
+    }
+  };
+
+  return (
+    <div className={styles.searchContainer} ref={containerRef}>
+      <div className={styles.searchBar}>
+        <Search className={styles.searchIcon} size={18} />
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="搜索歌曲、歌手..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => results.length > 0 && setShowResults(true)}
+        />
+        {query && (
+          <button className={styles.clearButton} onClick={() => { setQuery(''); setResults([]); }}>
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {showResults && (
+        <div className={styles.results}>
+          {loading ? (
+            <div className={styles.loading}>搜索中...</div>
+          ) : results.length === 0 ? (
+            <div className={styles.noResults}>未找到相关歌曲</div>
+          ) : (
+            results.map((song, index) => (
+              <div
+                key={song.id}
+                className={styles.resultItem}
+                style={{ animationDelay: `${index * 40}ms` }}
+                onClick={() => handlePlaySong(song, results)}
+              >
+                <img src={song.coverUrl} alt="" className={styles.thumbnail} />
+                <div className={styles.songInfo}>
+                  <span className={styles.songName}>{song.name}</span>
+                  <span className={styles.songMeta}>{song.artist} · {song.album}</span>
+                </div>
+                <span className={styles.duration}>{formatDuration(song.duration)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SearchBar;
