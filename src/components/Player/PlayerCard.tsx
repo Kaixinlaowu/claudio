@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './PlayerCard.module.css';
 import usePlayerStore from '../../lib/state/playerStore';
+import { LyricDisplay } from './LyricDisplay';
 
 interface PlayerCardProps {
   onVinylClick?: () => void;
@@ -11,41 +12,43 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false
   const { currentSong, isPlaying } = usePlayerStore();
   const vinylRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   useEffect(() => {
     if (vinylRef.current) {
-      if (isPlaying) {
-        vinylRef.current.style.animationPlayState = 'running';
-      } else {
-        vinylRef.current.style.animationPlayState = 'paused';
-      }
+      vinylRef.current.style.animationPlayState = isPlaying ? 'running' : 'paused';
     }
     setImageError(false);
   }, [isPlaying, currentSong]);
 
   const coverUrl = currentSong?.coverUrl;
   const showCover = coverUrl && !imageError;
-
   const vinylSize = fullWidth ? 'min(320px, 60vw)' : 'min(240px, 45vw)';
 
   return (
     <div className={styles.playerCard} style={fullWidth ? { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%', maxWidth: '400px' } : {}}>
-      <div className={styles.vinylContainer} ref={vinylRef} onClick={onVinylClick} style={{ '--vinyl-size': vinylSize } as React.CSSProperties}>
-        <div className={`${styles.vinyl} ${isPlaying ? styles.spinning : ''}`}>
-          <div className={styles.vinylCenter} />
-          <div className={styles.vinylGroove} />
-          <div className={styles.vinylGroove} />
-          <div className={styles.vinylGroove} />
+      {!showLyrics && (
+        <div className={styles.vinylContainer} ref={vinylRef} onClick={onVinylClick} style={{ '--vinyl-size': vinylSize } as React.CSSProperties}>
+          <div className={`${styles.vinyl} ${isPlaying ? styles.spinning : ''}`}>
+            <div className={styles.vinylCenter} />
+            <div className={styles.vinylGroove} />
+            <div className={styles.vinylGroove} />
+            <div className={styles.vinylGroove} />
+          </div>
+          {showCover && (
+            <img
+              src={coverUrl}
+              alt={currentSong?.name}
+              className={styles.coverArt}
+              onError={() => setImageError(true)}
+            />
+          )}
         </div>
-        {showCover && (
-          <img
-            src={coverUrl}
-            alt={currentSong?.name}
-            className={styles.coverArt}
-            onError={() => setImageError(true)}
-          />
-        )}
-      </div>
+      )}
+
+      {showLyrics && currentSong && (
+        <LyricDisplay />
+      )}
 
       <div className={styles.songInfo}>
         {currentSong ? (
@@ -54,6 +57,12 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false
             <p className={styles.songMeta}>
               {currentSong.artist} · {currentSong.album}
             </p>
+            <button
+              className={`${styles.lyricToggle} ${showLyrics ? styles.lyricToggleActive : ''}`}
+              onClick={() => setShowLyrics(!showLyrics)}
+            >
+              {showLyrics ? '🎵 唱片' : '📝 歌词'}
+            </button>
           </>
         ) : (
           <>

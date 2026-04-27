@@ -8,6 +8,7 @@ interface ContextFragments {
   userModRules: string;
   environment: string;
   recentPlays: string;
+  currentPlaylist: string;
   userInput: string;
 }
 
@@ -58,9 +59,17 @@ function formatRecentPlays(songs: Song[]): string {
     .join('\n');
 }
 
+function formatPlaylist(songs: Song[]): string {
+  if (songs.length === 0) return '队列为空';
+  return songs
+    .map((s, i) => `${i + 1}. ${s.name} - ${s.artist}`)
+    .join('\n');
+}
+
 export async function buildContext(
   userInput: string,
   recentPlays: Song[] = [],
+  currentPlaylist: Song[] = [],
   conversationHistory: ChatMessage[] = []
 ): Promise<{
   messages: Array<{ role: string; content: string }>;
@@ -84,10 +93,11 @@ export async function buildContext(
     userModRules: modRules,
     environment: getEnvironment(),
     recentPlays: formatRecentPlays(recentPlays),
+    currentPlaylist: formatPlaylist(currentPlaylist),
     userInput,
   };
 
-  const contextPrompt = `## 当前环境\n${fragments.environment}\n\n## 用户音乐品味\n${fragments.userTaste}\n\n## 用户作息习惯\n${fragments.userRoutines}\n\n## 用户播放列表\n${fragments.userPlaylists}\n\n## 播放历史\n${fragments.recentPlays}`;
+  const contextPrompt = `## 当前环境\n${fragments.environment}\n\n## 用户音乐品味\n${fragments.userTaste}\n\n## 用户作息习惯\n${fragments.userRoutines}\n\n## 用户播放列表\n${fragments.userPlaylists}\n\n## 播放历史\n${fragments.recentPlays}\n\n## 当前播放队列\n${fragments.currentPlaylist}`;
 
   const historyMessages = conversationHistory
     .slice(-10)

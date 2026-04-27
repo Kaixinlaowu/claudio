@@ -85,8 +85,41 @@ export async function getSongsDetails(ids: string[]): Promise<Map<string, { cove
   return result;
 }
 
-export async function getLyric(_id: string): Promise<string> {
-  return '';
+interface LyricResult {
+  lrc?: { lyric?: string };
+  tlyric?: { lyric?: string };
+}
+
+function parseLrc(lrcStr: string): Array<{ time: number; text: string }> {
+  const lines: Array<{ time: number; text: string }> = [];
+  const regex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]\s*(.*)/g;
+  let match;
+  while ((match = regex.exec(lrcStr)) !== null) {
+    const mins = parseInt(match[1]);
+    const secs = parseInt(match[2]);
+    let ms = 0;
+    if (match[3]) {
+      ms = match[3].length === 2 ? parseInt(match[3]) * 10 : parseInt(match[3]);
+    }
+    const text = match[4]?.trim();
+    if (text) {
+      lines.push({ time: mins * 60 + secs + ms / 1000, text });
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+export async function getLyric(id: string): Promise<{ original: Array<{ time: number; text: string }>; translated: Array<{ time: number; text: string }> }> {
+  try {
+    const text = await invoke<string>('netease_lyric', { id });
+    const data: LyricResult = JSON.parse(text);
+    const original = data.lrc?.lyric ? parseLrc(data.lrc.lyric) : [];
+    const translated = data.tlyric?.lyric ? parseLrc(data.tlyric.lyric) : [];
+    return { original, translated };
+  } catch (err) {
+    console.error('[netease.ts] getLyric error:', err);
+    return { original: [], translated: [] };
+  }
 }
 
 export function formatDuration(ms: number): string {

@@ -28,6 +28,8 @@ export interface PlayerState {
   isSpeaking: boolean;
   currentText: string;
   isMuted: boolean;
+  // Saved volume before mute (for restoring)
+  savedVolume: number;
   // Liked songs
   likedSongs: Array<{
     id: number;
@@ -52,6 +54,8 @@ export interface PlayerActions {
   addToPlaylist: (song: Song) => void;
   removeFromPlaylist: (index: number) => void;
   clearPlaylist: () => void;
+  insertIntoPlaylist: (index: number, song: Song) => void;
+  playSongAtIndex: (index: number) => Promise<void>;
   playNext: () => void;
   playPrev: () => void;
   setProgress: (progress: number) => void;
@@ -85,6 +89,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   isSpeaking: false,
   currentText: '',
   isMuted: false,
+  savedVolume: 0.8,
   // Liked songs
   likedSongs: [],
 
@@ -151,6 +156,29 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   }),
 
   clearPlaylist: () => set({ playlist: [], currentIndex: -1, currentSong: null }),
+
+  insertIntoPlaylist: (index, song) => set((state) => {
+    const newPlaylist = [...state.playlist];
+    const clampedIndex = Math.max(0, Math.min(index, newPlaylist.length));
+    newPlaylist.splice(clampedIndex, 0, song);
+    return {
+      playlist: newPlaylist,
+      currentIndex: clampedIndex <= state.currentIndex ? state.currentIndex + 1 : state.currentIndex,
+    };
+  }),
+
+  playSongAtIndex: async (index) => {
+    const { playlist } = get();
+    if (index < 0 || index >= playlist.length) return;
+    let song = playlist[index];
+    if (!song.url) {
+      const url = await getSongUrl(song.id);
+      if (!url) return;
+      song = { ...song, url };
+    }
+    set({ currentIndex: index, currentSong: song, isPlaying: true, progress: 0 });
+    get().recordPlay(song);
+  },
 
   playNext: async () => {
     const { playlist, currentIndex, repeatMode, shuffle } = get();
@@ -226,9 +254,10 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   setVolume: (volume) => set({ volume }),
 
   toggleMute: () => set((state) => {
-    const newMuted = !state.isMuted;
-    // When unmuting, restore volume to previous level if stored, otherwise use current
-    return { isMuted: newMuted };
+    if (state.isMuted) {
+      return { isMuted: false, volume: state.savedVolume };
+    }
+    return { isMuted: true, savedVolume: state.volume };
   }),
 
   toggleRepeat: () => set((state) => {

@@ -52,7 +52,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const history = get().messages;
-      const { messages: ctxMessages, system } = await buildContext(text, [], history);
+      const player = usePlayerStore.getState();
+      const recentHistory = player.playHistory.map(r => ({
+        id: r.songId,
+        name: r.songName,
+        artist: r.artist,
+        album: r.album,
+        coverUrl: r.coverUrl,
+        url: r.url,
+        duration: 0,
+      }));
+      const { messages: ctxMessages, system } = await buildContext(text, recentHistory, player.playlist, history);
       const aiResponse = await chatWithAI(ctxMessages, system);
 
       console.log('AI response:', aiResponse);
@@ -94,8 +104,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
           }
         }
-      } else {
-        console.log('AI did not return play intent');
+      }
+
+      // Handle queue operations from AI
+      if (aiResponse.queue && aiResponse.queue.length > 0) {
+        console.log('AI queue actions:', aiResponse.queue);
+        for (const qa of aiResponse.queue) {
+          const player = usePlayerStore.getState();
+          switch (qa.action) {
+            case 'add': {
+              if (!qa.query) break;
+              const results = await searchSongs(qa.query);
+              if (results.length > 0) {
+                const details = await getSongsDetails(results.map(s => s.id));
+                const song = results[0];
+                const detail = details.get(song.id);
+                const enriched = detail ? { ...song, coverUrl: detail.coverUrl, duration: detail.duration || song.duration } : song;
+                player.addToPlaylist(enriched);
+              }
+              break;
+            }
+            case 'insert_next': {
+              if (!qa.query) break;
+              const results = await searchSongs(qa.query);
+              if (results.length > 0) {
+                const details = await getSongsDetails(results.map(s => s.id));
+                const song = results[0];
+                const detail = details.get(song.id);
+                const enriched = detail ? { ...song, coverUrl: detail.coverUrl, duration: detail.duration || song.duration } : song;
+                player.insertIntoPlaylist(player.currentIndex + 1, enriched);
+              }
+              break;
+            }
+            case 'remove_index': {
+              if (qa.index && qa.index >= 1 && qa.index <= player.playlist.length) {
+                player.removeFromPlaylist(qa.index - 1);
+              }
+              break;
+            }
+            case 'clear':
+              player.clearPlaylist();
+              player.pause();
+              break;
+            case 'play_index': {
+              if (qa.index && qa.index >= 1 && qa.index <= player.playlist.length) {
+                await player.playSongAtIndex(qa.index - 1);
+              }
+              break;
+            }
+            case 'describe':
+              break;
+          }
+        }
+      }
+
+      if (!aiResponse.play?.length && !aiResponse.queue?.length) {
+        console.log('AI did not return play or queue intent');
       }
     } catch (err) {
       console.error('Chat error:', err);
@@ -141,11 +205,23 @@ function executeCommand(
       usePlayerStore.getState().toggleMute();
       return '已静音';
     case 'loop':
-      return '单曲循环';
+      player.toggleRepeat();
+      const modeLabels: Record<string, string> = { none: '已关闭循环', one: '单曲循环', all: '列表循环' };
+      const freshMode = usePlayerStore.getState().repeatMode;
+      return modeLabels[freshMode] || '单曲循环';
     case 'shuffle':
-      return '随机播放';
-    case 'volume':
-      return cmd.action === 'up' ? '音量调大' : '音量调小';
+      player.toggleShuffle();
+      return player.shuffle ? '已开启随机播放' : '已关闭随机播放';
+    case 'volume': {
+      const delta = cmd.action === 'up' ? 0.1 : -0.1;
+      const newVol = Math.max(0, Math.min(1, player.volume + delta));
+      player.setVolume(newVol);
+      return `音量已调整为 ${Math.round(newVol * 100)}%`;
+    }
+    case 'clear_queue':
+      player.clearPlaylist();
+      player.pause();
+      return '已清空播放队列';
     default:
       return '好的';
   }

@@ -10,18 +10,22 @@ import { HistoryButton } from './components/Player/HistoryButton';
 import { FavoritesButton } from './components/Player/FavoritesButton';
 import { TTSIndicator } from './components/Player/TTSIndicator';
 import PlaylistPanel from './components/Playlist/PlaylistPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Spinner } from './components/Spinner';
 import usePlayerStore from './lib/state/playerStore';
 import { scheduler } from './lib/scheduler';
 import './styles/globals.css';
 import './App.css';
 
-function App() {
+function AppContent() {
   const { isPlaying, loadHistoryAsPlaylist, loadLikedSongs, currentSong } = usePlayerStore();
   const [showPlaylist, setShowPlaylist] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    loadHistoryAsPlaylist();
-    loadLikedSongs();
+    Promise.all([loadHistoryAsPlaylist(), loadLikedSongs()]).finally(() => {
+      setInitialLoading(false);
+    });
     scheduler.start();
     return () => scheduler.stop();
   }, [loadHistoryAsPlaylist, loadLikedSongs]);
@@ -45,9 +49,15 @@ function App() {
           onClick={hidePlaylist}
         />
 
-        <section className={`nowPlaying ${showPlaylist ? '' : 'fullWidth'}`}>
-          <PlayerCard onVinylClick={hidePlaylist} fullWidth={!showPlaylist} />
-        </section>
+        {initialLoading ? (
+          <section className={`nowPlaying ${showPlaylist ? '' : 'fullWidth'}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner size="lg" text="正在加载..." />
+          </section>
+        ) : (
+          <section className={`nowPlaying ${showPlaylist ? '' : 'fullWidth'}`}>
+            <PlayerCard onVinylClick={hidePlaylist} fullWidth={!showPlaylist} />
+          </section>
+        )}
 
         <section className={`sidePanel ${showPlaylist ? '' : 'hidden'}`}>
           <div className="panelHeader">
@@ -92,6 +102,14 @@ function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }
 

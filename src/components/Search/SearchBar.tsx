@@ -102,7 +102,14 @@ const SearchBar: React.FC = () => {
       {showResults && (
         <div className={styles.results}>
           {loading ? (
-            <div className={styles.loading}>搜索中...</div>
+            <div className={styles.loading}>
+              <div className={styles.spinner}>
+                <span className={styles.dot} />
+                <span className={styles.dot} />
+                <span className={styles.dot} />
+              </div>
+              <span>搜索中</span>
+            </div>
           ) : error ? (
             <div className={styles.noResults}>{error}</div>
           ) : results.length === 0 ? (

@@ -1,4 +1,4 @@
-mod netease_api;
+// netease_api module removed — functionality migrated to Tauri IPC commands in this file
 
 use rusqlite::{Connection, Result as SqliteResult, params};
 use serde::{Deserialize, Serialize};
@@ -609,6 +609,44 @@ async fn netease_song_detail(ids: Vec<String>) -> Result<Vec<NeteaseSongDetail>,
     Ok(songs)
 }
 
+#[tauri::command]
+async fn netease_lyric(id: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let cookie = load_cookie();
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
+    );
+    headers.insert(
+        reqwest::header::REFERER,
+        "https://music.163.com".parse().unwrap(),
+    );
+    if !cookie.is_empty() {
+        headers.insert(
+            reqwest::header::COOKIE,
+            cookie.parse().unwrap(),
+        );
+    }
+
+    let url = "https://music.163.com/api/song/lyric";
+
+    let resp = client
+        .get(url)
+        .headers(headers)
+        .query(&[("id", &id), ("lv", &"1".to_string()), ("kv", &"1".to_string())])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    Ok(text)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_dir = dirs::data_local_dir()
@@ -647,6 +685,7 @@ pub fn run() {
             netease_search,
             netease_song_url,
             netease_song_detail,
+            netease_lyric,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

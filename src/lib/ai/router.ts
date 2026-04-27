@@ -15,6 +15,10 @@ const VOLUME_PATTERNS = [
   /^音量\s*(调小|减小|降低|减|关小)$/i,
 ];
 
+const QUEUE_PATTERNS = [
+  /^(清空|清除)\s*(播放)?(队列|列表)$/i,
+];
+
 export function classifyIntent(input: string): 'command' | 'chat' {
   const trimmed = input.trim();
 
@@ -26,11 +30,15 @@ export function classifyIntent(input: string): 'command' | 'chat' {
     return 'command';
   }
 
+  if (QUEUE_PATTERNS.some((p) => p.test(trimmed))) {
+    return 'command';
+  }
+
   return 'chat';
 }
 
 export function parseCommand(input: string): {
-  type: 'play' | 'pause' | 'next' | 'prev' | 'stop' | 'volume' | 'loop' | 'shuffle' | 'mute';
+  type: 'play' | 'pause' | 'next' | 'prev' | 'stop' | 'volume' | 'loop' | 'shuffle' | 'mute' | 'clear_queue';
   action?: 'up' | 'down';
 } | null {
   const trimmed = input.trim();
@@ -50,6 +58,8 @@ export function parseCommand(input: string): {
 
   const volumeDown = /^音量\s*(调小|减小|降低|减|关小)$/i.exec(trimmed);
   if (volumeDown) return { type: 'volume', action: 'down' };
+
+  if (/^(清空|清除)\s*(播放)?(队列|列表)$/.test(trimmed)) return { type: 'clear_queue' };
 
   return null;
 }

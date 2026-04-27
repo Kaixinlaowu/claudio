@@ -1,6 +1,7 @@
 export interface AIResponse {
   say: string;
   play?: PlayIntent[];
+  queue?: QueueAction[];
   reason?: string;
   segue?: string;
 }
@@ -8,6 +9,13 @@ export interface AIResponse {
 export interface PlayIntent {
   query: string;
   count?: number;
+  reason?: string;
+}
+
+export interface QueueAction {
+  action: 'add' | 'insert_next' | 'remove_index' | 'clear' | 'play_index' | 'describe';
+  query?: string;
+  index?: number;
   reason?: string;
 }
 

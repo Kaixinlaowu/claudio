@@ -9,6 +9,7 @@
 ## Features
 
 - **AI DJ**: Learns your taste and announces songs like a personal radio host
+- **Queue Operations**: Natural language queue control — add, insert, remove, jump, clear via AI
 - **Smart Scheduling**: Rhythm-based music delivery (morning, work, evening modes)
 - **Voice Pipeline**: TTS announces now-playing info
 - **Local Brain**: Claude Code subprocess handles natural language understanding
@@ -100,7 +101,7 @@ claudio/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── lib.rs           # Tauri main entry, IPC commands
-│   │   └── netease_api/    # Netease API integration
+│   │   └── netease/         # Netease API handlers (lyrics, search, song_url)
 │   └── tauri.conf.json
 ├── src/
 │   ├── lib/
@@ -108,9 +109,10 @@ claudio/
 │   │   ├── ai/              # Router, context, claude adapter
 │   │   └── state/           # Zustand stores
 │   └── components/
-│       ├── Player/          # AudioPlayer, PlayerCard, VolumeControl
-│       ├── Playlist/        # HistoryPanel, LikedPanel
-│       └── Search/          # SearchBar
+│       ├── Player/          # AudioPlayer, PlayerCard, LyricDisplay, VolumeControl
+│       ├── Playlist/        # HistoryPanel, LikedPanel, PlaylistPanel
+│       ├── Search/          # SearchBar
+│       └── ErrorBoundary.tsx
 └── user/                    # User personalization files
 ```
 
@@ -126,11 +128,11 @@ claudio/
 - History and liked songs storage
 - AI DJ chat interface
 - TTS voice announcements
-
-### TODO
-- [ ] Mute command implementation
-- [ ] Error boundary components
-- [ ] Lyrics display enhancement
+- AI queue operations (add, insert, remove, clear, jump via natural language)
+- Mute/unmute with volume save/restore
+- LRC lyrics display with auto-scroll
+- Loading animations and error boundary
+- Loop/shuffle/volume quick commands
 
 ---
 

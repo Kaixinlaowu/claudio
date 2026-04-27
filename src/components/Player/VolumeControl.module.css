@@ -45,3 +45,8 @@
 .slider:hover .fill {
   background: var(--accent-primary);
 }
+
+.muted {
+  background: rgba(255, 255, 255, 0.2);
+  opacity: 0.4;
+}
