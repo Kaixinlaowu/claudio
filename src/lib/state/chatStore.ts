@@ -95,8 +95,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               const detail = details.get(s.id);
               return detail ? { ...s, coverUrl: detail.coverUrl, duration: detail.duration || s.duration } : s;
             });
-            // Keep up to 10 songs (first + 9 more)
-            const playlist = results.slice(0, 10);
+            // Keep up to 20 songs (first + 19 more)
+            const playlist = results.slice(0, 20);
             console.log('Setting playlist:', playlist.map(s => s.name));
             usePlayerStore.getState().setPlaylist(playlist);
             usePlayerStore.getState().setCurrentSong(playlist[0]);

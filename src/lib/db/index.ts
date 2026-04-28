@@ -1,4 +1,6 @@
 // Storage layer - Tauri SQLite when available, localStorage fallback
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+
 export interface PlayRecord {
   id?: number;
   song_id: string;
@@ -21,36 +23,18 @@ export interface Playlist {
 const HISTORY_KEY = 'claudio_play_history';
 const MAX_HISTORY = 100;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getTauriWindow = (): any => (typeof window !== 'undefined' ? window : null);
-
-function isTauri(): boolean {
-  const w = getTauriWindow();
-  return !!(w?.__TAURI__?.core?.invoke || w?.__TAURI__?.invoke);
-}
-
-function getTauriInvoke() {
-  const w = getTauriWindow();
-  if (w?.__TAURI__?.core?.invoke) return w.__TAURI__.core.invoke;
-  if (w?.__TAURI__?.invoke) return w.__TAURI__.invoke;
-  return null;
-}
-
-// Generic Tauri invoke with fallback
+// Generic Tauri invoke with localStorage fallback
 async function withTauriFallback<T>(
   command: string,
   args: Record<string, unknown>,
   localFallback: () => T
 ): Promise<T> {
-  if (isTauri()) {
-    try {
-      const invoke = getTauriInvoke() as Function;
-      return await invoke(command, args) as T;
-    } catch {
-      // fall through to localStorage
-    }
+  try {
+    return await tauriInvoke(command, args) as T;
+  } catch (e) {
+    console.error(`[db] Tauri invoke '${command}' failed, using fallback:`, e);
+    return localFallback();
   }
-  return localFallback();
 }
 
 // localStorage helpers
@@ -111,6 +95,12 @@ export async function savePlaylist(playlist: Playlist): Promise<Playlist> {
 
 export async function getPlaylists(): Promise<Playlist[]> {
   return withTauriFallback('get_playlists', {}, () => []);
+}
+
+export async function deletePlaylist(id: number): Promise<void> {
+  return withTauriFallback('delete_playlist', { id }, () => {
+    // localStorage fallback: no-op since playlists aren't stored in localStorage
+  });
 }
 
 export async function setPreference(key: string, value: string): Promise<void> {

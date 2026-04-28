@@ -161,6 +161,39 @@
   background: rgba(239, 68, 68, 0.1);
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.saveBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--duration-fast);
+  flex-shrink: 0;
+}
+
+.item:hover .saveBtn {
+  opacity: 1;
+}
+
+.saveBtn:hover {
+  color: var(--accent-primary);
+  background: rgba(29, 185, 84, 0.15);
+}
+
 .removeBtn {
   display: flex;
   align-items: center;

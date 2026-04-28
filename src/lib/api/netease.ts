@@ -122,6 +122,66 @@ export async function getLyric(id: string): Promise<{ original: Array<{ time: nu
   }
 }
 
+// Batch fetch full song info (name, artist, album, cover, duration) by IDs
+export async function getSongsByIds(ids: string[]): Promise<Song[]> {
+  if (ids.length === 0) return [];
+  try {
+    const details = await invoke<NeteaseSongDetail[]>('netease_song_detail', { ids });
+    return (details || []).map((s) => ({
+      id: String(s.id),
+      name: s.name,
+      artist: (s.artists || []).map((a: { name: string }) => a.name).join(', '),
+      album: s.album?.name || 'Unknown Album',
+      coverUrl: ensureHttps(s.album?.pic_url || ''),
+      url: '',
+      duration: s.duration || 0,
+    }));
+  } catch (err) {
+    console.error('[netease.ts] getSongsByIds error:', err);
+    return [];
+  }
+}
+
+export interface NeteaseUserPlaylist {
+  id: number;
+  name: string;
+  trackCount: number;
+  coverImgUrl: string;
+}
+
+// Get user's Netease playlists by UID
+export async function getUserPlaylists(uid: string): Promise<NeteaseUserPlaylist[]> {
+  try {
+    const result = await invoke<NeteaseUserPlaylist[]>('netease_user_playlists', { uid });
+    return (result || []).map((p) => ({
+      ...p,
+      coverImgUrl: ensureHttps(p.coverImgUrl || ''),
+    }));
+  } catch (err) {
+    console.error('[netease.ts] getUserPlaylists error:', err);
+    throw err;
+  }
+}
+
+// Get songs from a Netease playlist by playlist ID
+export async function getPlaylistDetail(id: string): Promise<Song[]> {
+  try {
+    const result = await invoke<NeteaseSong[]>('netease_playlist_detail', { id });
+    return (result || []).map((s: NeteaseSong) => ({
+      id: String(s.id),
+      name: s.name,
+      artist: (s.artists || []).map((a: { name: string }) => a.name).join(', '),
+      album: s.album?.name || 'Unknown Album',
+      coverUrl: ensureHttps(s.album?.pic_url || ''),
+      url: '',
+      duration: s.duration || 0,
+    }));
+  } catch (err) {
+    console.error('[netease.ts] getPlaylistDetail error:', err);
+    throw err;
+  }
+}
+
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const mins = Math.floor(seconds / 60);

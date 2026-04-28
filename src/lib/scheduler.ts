@@ -91,7 +91,7 @@ class Scheduler {
           const detail = details.get(s.id);
           return detail ? { ...s, coverUrl: detail.coverUrl, duration: detail.duration || s.duration } : s;
         });
-        const playlist = results.slice(0, 10);
+        const playlist = results.slice(0, 20);
         usePlayerStore.getState().setPlaylist(playlist);
         usePlayerStore.getState().setCurrentSong(playlist[0]);
       }

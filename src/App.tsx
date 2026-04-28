@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import SearchBar from './components/Search/SearchBar';
 import { ChatBubble } from './components/Chat/ChatBubble';
 import { AudioPlayer } from './components/Player/AudioPlayer';
@@ -8,31 +8,102 @@ import { NowPlayingMini } from './components/Player/NowPlayingMini';
 import { VolumeControl } from './components/Player/VolumeControl';
 import { HistoryButton } from './components/Player/HistoryButton';
 import { FavoritesButton } from './components/Player/FavoritesButton';
+import { PlaylistsButton } from './components/Player/PlaylistsButton';
 import { TTSIndicator } from './components/Player/TTSIndicator';
 import PlaylistPanel from './components/Playlist/PlaylistPanel';
+import { PlaylistsPanel } from './components/Playlist/PlaylistsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Spinner } from './components/Spinner';
 import usePlayerStore from './lib/state/playerStore';
+import { usePlaylistStore } from './lib/state/playlistStore';
 import { scheduler } from './lib/scheduler';
 import './styles/globals.css';
 import './App.css';
 
 function AppContent() {
-  const { isPlaying, loadHistoryAsPlaylist, loadLikedSongs, currentSong } = usePlayerStore();
+  const { isPlaying, loadHistoryAsPlaylist, loadLikedSongs, currentSong, restoreQueueState } = usePlayerStore();
+  const loadPlaylists = usePlaylistStore((s) => s.loadPlaylists);
   const [showPlaylist, setShowPlaylist] = useState(true);
+  const [activePanel, setActivePanel] = useState<'queue' | 'playlists'>('queue');
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([loadHistoryAsPlaylist(), loadLikedSongs()]).finally(() => {
+    (async () => {
+      const restored = await restoreQueueState();
+      if (!restored) {
+        await loadHistoryAsPlaylist();
+      }
+      await Promise.all([loadLikedSongs(), loadPlaylists()]);
       setInitialLoading(false);
-    });
+    })();
     scheduler.start();
     return () => scheduler.stop();
-  }, [loadHistoryAsPlaylist, loadLikedSongs]);
+  }, [loadHistoryAsPlaylist, loadLikedSongs, loadPlaylists, restoreQueueState]);
 
   const togglePlaylist = () => setShowPlaylist(prev => !prev);
   const hidePlaylist = () => setShowPlaylist(false);
   const showPlaylistPanel = () => setShowPlaylist(true);
+  const switchToPlaylistsPanel = () => {
+    setActivePanel('playlists');
+    setShowPlaylist(true);
+  };
+
+  // Auto-hide player bar
+  const [barVisible, setBarVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const resetHideTimer = useCallback(() => {
+    setBarVisible(true);
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    if (isPlayingRef.current) {
+      hideTimerRef.current = setTimeout(() => {
+        setBarVisible(false);
+      }, 10000);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (e.clientY > window.innerHeight * 0.8) {
+        resetHideTimer();
+      }
+    };
+    const handleActivity = () => resetHideTimer();
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+
+    // Start initial timer if playing
+    if (isPlaying) {
+      resetHideTimer();
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [isPlaying, resetHideTimer]);
+
+  // Reset timer when playing state changes
+  useEffect(() => {
+    if (isPlaying) {
+      resetHideTimer();
+    } else {
+      setBarVisible(true);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    }
+  }, [isPlaying, resetHideTimer]);
 
   const coverStyle = currentSong?.coverUrl
     ? { '--cover-url': `url(${currentSong.coverUrl})` } as React.CSSProperties
@@ -42,7 +113,7 @@ function AppContent() {
     <div className="app">
       <AudioPlayer />
 
-      <main className="main" style={coverStyle}>
+      <main className={`main ${showPlaylist ? '' : 'noPanel'}`} style={coverStyle}>
         {/* 背景遮罩 - 播放队列隐藏时点击关闭 */}
         <div
           className={`mainOverlay ${showPlaylist ? '' : 'visible'}`}
@@ -61,8 +132,21 @@ function AppContent() {
 
         <section className={`sidePanel ${showPlaylist ? '' : 'hidden'}`}>
           <div className="panelHeader">
-            <span className="panelTitle">播放队列</span>
-            {isPlaying && (
+            <div className="panelTabs">
+              <button
+                className={`panelTab ${activePanel === 'queue' ? 'active' : ''}`}
+                onClick={() => setActivePanel('queue')}
+              >
+                播放队列
+              </button>
+              <button
+                className={`panelTab ${activePanel === 'playlists' ? 'active' : ''}`}
+                onClick={() => setActivePanel('playlists')}
+              >
+                我的歌单
+              </button>
+            </div>
+            {isPlaying && activePanel === 'queue' && (
               <div className="nowPlayingBadge">
                 <span className="nowPlayingDot" />
                 正在播放
@@ -70,8 +154,14 @@ function AppContent() {
             )}
           </div>
 
-          <SearchBar />
-          <PlaylistPanel />
+          {activePanel === 'queue' ? (
+            <>
+              <SearchBar />
+              <PlaylistPanel />
+            </>
+          ) : (
+            <PlaylistsPanel />
+          )}
         </section>
 
         {/* 隐藏时的拉出按钮 */}
@@ -85,7 +175,7 @@ function AppContent() {
       {/* TTS indicator overlay */}
       <TTSIndicator />
 
-      <footer className="playerBar">
+      <footer className={`playerBar ${barVisible ? '' : 'hidden'}`}>
         <div className="playerBarLeft">
           <NowPlayingMini />
         </div>
@@ -98,6 +188,7 @@ function AppContent() {
           <ChatBubble />
           <HistoryButton />
           <FavoritesButton />
+          <PlaylistsButton onClick={switchToPlaylistsPanel} />
           <VolumeControl />
         </div>
       </footer>

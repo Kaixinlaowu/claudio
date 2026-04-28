@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { addPlayRecord, getPlayHistory, toggleLike as dbToggleLike, getLikedSongs } from '../db';
+import { addPlayRecord, getPlayHistory, toggleLike as dbToggleLike, getLikedSongs, setPreference, getPreference } from '../db';
 import { getSongUrl } from '../api/netease';
 import type { Song } from '../ai/types';
 
@@ -13,6 +13,7 @@ export interface PlayerState {
   volume: number;
   repeatMode: 'none' | 'one' | 'all';
   shuffle: boolean;
+  aiRecommend: boolean;
   playHistory: Array<{
     id: number;
     songId: string;
@@ -63,6 +64,8 @@ export interface PlayerActions {
   setVolume: (volume: number) => void;
   toggleRepeat: () => void;
   toggleShuffle: () => void;
+  toggleAiRecommend: () => void;
+  requestAiRecommend: () => Promise<void>;
   loadPlayHistory: () => Promise<void>;
   loadHistoryAsPlaylist: () => Promise<void>;
   recordPlay: (song: Song) => Promise<void>;
@@ -72,6 +75,8 @@ export interface PlayerActions {
   toggleLike: (songId: string, liked: boolean) => Promise<void>;
   loadLikedSongs: () => Promise<void>;
   toggleMute: () => void;
+  saveQueueState: () => Promise<void>;
+  restoreQueueState: () => Promise<boolean>;
 }
 
 const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
@@ -218,6 +223,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
           progress: 0,
         });
         get().recordPlay(nextSong);
+        get().requestAiRecommend();
         return;
       }
     }
@@ -267,6 +273,54 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   }),
 
   toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
+
+  aiRecommend: false,
+  toggleAiRecommend: () => set((state) => ({ aiRecommend: !state.aiRecommend })),
+
+  requestAiRecommend: async () => {
+    const { aiRecommend, playlist, currentIndex } = get();
+    if (!aiRecommend) return;
+    // Only trigger when near end (last 2 songs remaining)
+    const remaining = playlist.length - currentIndex - 1;
+    if (remaining > 2) return;
+
+    try {
+      const { chatWithAI } = await import('../ai/claude');
+      const songNames = playlist.map((s) => `${s.name} - ${s.artist}`).join('\n');
+      const prompt = `Based on this playlist:\n${songNames}\n\nRecommend 3 different search keywords for similar music. Return as JSON array: ["keyword1", "keyword2", "keyword3"]`;
+      const response = await chatWithAI([{ role: 'user', content: prompt }]);
+      const text = response.say || '';
+      const match = text.match(/\[.*\]/s);
+      if (!match) return;
+      const keywords: string[] = JSON.parse(match[0]);
+      if (!keywords.length) return;
+
+      const { searchSongs, getSongsDetails } = await import('../api/netease');
+      const newSongs: Song[] = [];
+      for (const kw of keywords.slice(0, 3)) {
+        const results = await searchSongs(kw);
+        newSongs.push(...results.slice(0, 3));
+      }
+
+      if (newSongs.length > 0) {
+        // Deduplicate and append to playlist
+        const existingIds = new Set(playlist.map((s) => s.id));
+        const uniqueNew = newSongs.filter((s) => !existingIds.has(s.id));
+        if (uniqueNew.length > 0) {
+          // Fetch details for covers
+          const details = await getSongsDetails(uniqueNew.map((s) => s.id));
+          const enriched = uniqueNew.map((s) => {
+            const d = details.get(s.id);
+            return d ? { ...s, coverUrl: d.coverUrl, duration: d.duration } : s;
+          });
+          set((state) => ({ playlist: [...state.playlist, ...enriched] }));
+          console.log(`AI recommended ${enriched.length} songs`);
+        }
+      }
+    } catch (err) {
+      console.error('AI recommend failed:', err);
+    }
+  },
 
   loadPlayHistory: async () => {
     try {
@@ -365,6 +419,88 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       console.error('Failed to load liked songs:', err);
     }
   },
+
+  saveQueueState: async () => {
+    const { playlist, currentIndex, repeatMode, shuffle, volume } = get();
+    if (playlist.length === 0) {
+      try { await setPreference('queue_state', ''); } catch {}
+      return;
+    }
+    const state = {
+      songIds: playlist.map((s) => s.id),
+      names: playlist.map((s) => s.name),
+      artists: playlist.map((s) => s.artist),
+      albums: playlist.map((s) => s.album || ''),
+      covers: playlist.map((s) => s.coverUrl || ''),
+      urls: playlist.map((s) => s.url || ''),
+      durations: playlist.map((s) => s.duration),
+      currentIndex,
+      repeatMode,
+      shuffle,
+      volume,
+    };
+    try {
+      await setPreference('queue_state', JSON.stringify(state));
+    } catch {}
+  },
+
+  restoreQueueState: async () => {
+    try {
+      const raw = await getPreference('queue_state');
+      if (!raw) return false;
+
+      const state = JSON.parse(raw);
+      if (!state.songIds?.length) return false;
+
+      const songs: Song[] = [];
+      for (let i = 0; i < state.songIds.length; i++) {
+        songs.push({
+          id: state.songIds[i],
+          name: state.names[i] || '',
+          artist: state.artists[i] || '',
+          album: state.albums[i] || '',
+          coverUrl: state.covers[i] || '',
+          url: state.urls[i] || '',
+          duration: state.durations[i] || 0,
+        });
+      }
+
+      const idx = Math.min(Math.max(0, state.currentIndex), songs.length - 1);
+      set({
+        playlist: songs,
+        currentIndex: idx,
+        repeatMode: state.repeatMode || 'none',
+        shuffle: state.shuffle || false,
+        volume: state.volume ?? 0.8,
+      });
+
+      if (songs.length > 0) {
+        await get().setCurrentSongQuiet(songs[idx]);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
 }));
+
+// Debounced auto-save when playlist or index changes
+let saveTimer: ReturnType<typeof setTimeout>;
+let lastSaveKey = '';
+usePlayerStore.subscribe((state) => {
+  const key = [
+    state.playlist.length,
+    state.currentIndex,
+    state.repeatMode,
+    state.shuffle,
+    state.volume,
+  ].join('|');
+  if (key === lastSaveKey) return;
+  lastSaveKey = key;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    usePlayerStore.getState().saveQueueState();
+  }, 2000);
+});
 
 export default usePlayerStore;

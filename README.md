@@ -10,10 +10,14 @@
 
 - **AI DJ**: Learns your taste and announces songs like a personal radio host
 - **Queue Operations**: Natural language queue control — add, insert, remove, jump, clear via AI
+- **Playlist Import**: Import playlists from Netease Music by user ID, with progress tracking
+- **Local Playlists**: Create, manage, save/restore playlists with playlist-to-playlist song transfer
 - **Smart Scheduling**: Rhythm-based music delivery (morning, work, evening modes)
 - **Voice Pipeline**: TTS announces now-playing info
 - **Local Brain**: Claude Code subprocess handles natural language understanding
-- **Netease Music**: Full integration with search, playback, lyrics via Tauri IPC
+- **Netease Music**: Full integration with search, playback, lyrics, playlists via Tauri IPC
+- **Queue Persistence**: Play queue auto-saves and restores across app restarts
+- **Lyrics Display**: Synced LRC lyrics with auto-scroll
 
 ---
 

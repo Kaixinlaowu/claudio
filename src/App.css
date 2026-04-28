@@ -105,7 +105,9 @@
   pointer-events: none;
 }
 
-/* 拉出按钮 - 隐藏时显示 */
+.main.noPanel {
+  grid-template-columns: 1fr;
+}
 .revealBtn {
   position: absolute;
   right: 0;
@@ -139,11 +141,45 @@
 }
 
 .panelHeader {
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.panelTabs {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.panelTab {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-expo);
+  white-space: nowrap;
+}
+
+.panelTab:hover {
+  color: var(--text-secondary);
+}
+
+.panelTab.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .panelTitle {
@@ -185,6 +221,11 @@
   gap: var(--space-4);
   position: relative;
   z-index: 200;
+  transition: transform 0.4s var(--ease-out-expo);
+}
+
+.playerBar.hidden {
+  transform: translateY(100%);
 }
 
 .playerBarLeft {

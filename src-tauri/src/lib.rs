@@ -70,6 +70,33 @@ pub struct NeteaseSongUrl {
     pub url: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NeteaseUserPlaylist {
+    pub id: u64,
+    pub name: String,
+    #[serde(rename = "trackCount")]
+    pub track_count: u64,
+    #[serde(rename = "coverImgUrl")]
+    pub cover_img_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NeteaseUserPlaylistResponse {
+    pub playlist: Vec<NeteaseUserPlaylist>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NeteasePlaylistDetail {
+    pub id: u64,
+    pub name: String,
+    pub tracks: Vec<NeteaseSong>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NeteasePlaylistDetailResponse {
+    pub playlist: NeteasePlaylistDetail,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayRecord {
     pub id: Option<i64>,
@@ -254,6 +281,13 @@ fn get_playlists(state: State<AppState>) -> Result<Vec<Playlist>, DbError> {
 }
 
 #[tauri::command]
+fn delete_playlist(state: State<AppState>, id: i64) -> Result<(), DbError> {
+    let conn = state.db.lock().map_err(|_| DbError::Lock)?;
+    conn.execute("DELETE FROM playlists WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+#[tauri::command]
 fn set_preference(state: State<AppState>, key: String, value: String) -> Result<(), DbError> {
     let conn = state.db.lock().map_err(|_| DbError::Lock)?;
     conn.execute(
@@ -276,7 +310,7 @@ fn get_preference(state: State<AppState>, key: String) -> Result<Option<String>,
 
 fn load_cookie() -> String {
     // Try environment variable first (NETEASE_COOKIE or MUSIC_U)
-    for cookie_env in ["NETEASE_COOKIE", "MUSIC_U"] {
+    for cookie_env in ["VITE_NET_COOKIE", "NETEASE_COOKIE", "MUSIC_U"] {
         if let Ok(cookie) = std::env::var(cookie_env) {
             if !cookie.is_empty() {
                 log::info!("Loaded {} from environment", cookie_env);
@@ -289,9 +323,10 @@ fn load_cookie() -> String {
     let try_load_env = |env_path: &std::path::Path| -> Option<String> {
         if env_path.exists() {
             if let Ok(content) = std::fs::read_to_string(env_path) {
-                for line in content.lines() {
-                    // Check both NETEASE_COOKIE and MUSIC_U
-                    for cookie_key in ["NETEASE_COOKIE=", "MUSIC_U="] {
+                // Search keys in priority order across ALL lines (not line-by-line)
+                // VITE_NET_COOKIE has __csrf etc., MUSIC_U alone is insufficient for VIP songs
+                for cookie_key in ["VITE_NET_COOKIE=", "NETEASE_COOKIE=", "MUSIC_U="] {
+                    for line in content.lines() {
                         if line.starts_with(cookie_key) {
                             let cookie = line.trim_start_matches(cookie_key).trim();
                             if !cookie.is_empty() {
@@ -328,6 +363,17 @@ fn load_cookie() -> String {
                 return cookie;
             }
         }
+    }
+
+    // Try CARGO_MANIFEST_DIR/../.env (for Tauri dev mode: cwd=src-tauri/, .env in parent claudio/)
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let env_path = manifest_dir.join("..").join(".env");
+    if let Some(cookie) = try_load_env(&env_path) {
+        return cookie;
+    }
+    let env_path = manifest_dir.join(".env");
+    if let Some(cookie) = try_load_env(&env_path) {
+        return cookie;
     }
 
     // Try current working directory
@@ -403,6 +449,14 @@ async fn netease_search(keywords: String) -> Result<NeteaseSearchResult, String>
         log::error!("[NETEASE_CMD] {}", msg);
         msg
     })?;
+
+    // Check API response code
+    let code = json["code"].as_u64().unwrap_or(0);
+    if code != 200 {
+        let msg = json["message"].as_str().unwrap_or("Unknown error");
+        log::warn!("[NETEASE_CMD] Search API error {}: {}", code, msg);
+        return Err(format!("API error {}: {}", code, msg));
+    }
 
     // Extract songs manually
     let songs_array = json.get("result")
@@ -512,27 +566,66 @@ async fn netease_song_url(id: String) -> Result<String, String> {
         );
     }
 
-    let url = "https://music.163.com/api/song/enhance/player/url";
-    let body = format!("ids=[{}]&br=320000", id);
+    // Try quality levels from high to low (VIP songs need lower bitrate)
+    let api_url = "https://music.163.com/api/song/enhance/player/url";
+    let bitrates = [320000, 192000, 128000];
 
-    let resp = client
-        .post(url)
-        .headers(headers)
-        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    for &br in &bitrates {
+        let body = format!("ids=[{}]&br={}", id, br);
 
-    let json: serde_json::Value = serde_json::from_str(&resp.text().await.map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+        let resp = match client
+            .post(api_url)
+            .headers(headers.clone())
+            .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!("Song URL request failed for br={}: {}", br, e);
+                continue;
+            }
+        };
 
-    let url = json.pointer("/data/0/url")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_default();
+        let text = match resp.text().await {
+            Ok(t) => t,
+            Err(e) => {
+                log::warn!("Song URL read body failed for br={}: {}", br, e);
+                continue;
+            }
+        };
 
-    Ok(url)
+        let json: serde_json::Value = match serde_json::from_str(&text) {
+            Ok(j) => j,
+            Err(e) => {
+                log::warn!("Song URL JSON parse failed for br={}: {}", br, e);
+                continue;
+            }
+        };
+
+        // Check API response code
+        let code = json["code"].as_u64().unwrap_or(0);
+        if code != 200 {
+            let msg = json["message"].as_str().unwrap_or("Unknown error");
+            log::warn!("Song URL API error {} for br={}: {}", code, br, msg);
+            continue;
+        }
+
+        let song_url = json.pointer("/data/0/url")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+        if let Some(u) = song_url {
+            log::info!("Song URL found at br={} for id={}", br, id);
+            return Ok(u);
+        }
+        log::info!("Song URL empty at br={} for id={}", br, id);
+    }
+
+    log::warn!("No playable URL found for song id={} at any bitrate", id);
+    Ok(String::new())
 }
 
 #[tauri::command]
@@ -576,6 +669,14 @@ async fn netease_song_detail(ids: Vec<String>) -> Result<Vec<NeteaseSongDetail>,
 
     let text = resp.text().await.map_err(|e| e.to_string())?;
     let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+
+    // Check API response code
+    let code = json["code"].as_u64().unwrap_or(0);
+    if code != 200 {
+        let msg = json["message"].as_str().unwrap_or("Unknown error");
+        log::warn!("Song detail API error {}: {}", code, msg);
+        return Err(format!("API error {}: {}", code, msg));
+    }
 
     let songs_array = json.pointer("/songs")
         .and_then(|v| v.as_array())
@@ -644,7 +745,295 @@ async fn netease_lyric(id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     let text = resp.text().await.map_err(|e| e.to_string())?;
+    // Parse to validate, but return raw text for frontend compatibility
+    let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let code = json["code"].as_u64().unwrap_or(0);
+    if code != 200 {
+        let msg = json["message"].as_str().unwrap_or("Unknown error");
+        log::warn!("Lyric API error {}: {}", code, msg);
+        return Err(format!("API error {}: {}", code, msg));
+    }
     Ok(text)
+}
+
+#[tauri::command]
+async fn netease_user_playlists(uid: String) -> Result<Vec<NeteaseUserPlaylist>, String> {
+    let cookie = load_cookie();
+    let client = reqwest::Client::new();
+
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
+    );
+    headers.insert(
+        reqwest::header::REFERER,
+        "https://music.163.com".parse().unwrap(),
+    );
+    if !cookie.is_empty() {
+        headers.insert(reqwest::header::COOKIE, cookie.parse().unwrap());
+    }
+
+    let url = format!("https://music.163.com/api/user/playlist?uid={}&limit=100&offset=0", uid);
+
+    let resp = client
+        .get(&url)
+        .headers(headers)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("HTTP {}: {}", status.as_u16(), &text[..text.len().min(200)]));
+    }
+
+    let data: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Parse JSON failed: {}", e))?;
+
+    // Check API response code
+    let code = data["code"].as_u64().unwrap_or(0);
+    if code != 200 {
+        let msg = data["message"].as_str().unwrap_or("Unknown error");
+        return Err(format!("API error {}: {}", code, msg));
+    }
+
+    let playlists = data["playlist"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|item| NeteaseUserPlaylist {
+                    id: item["id"].as_u64().unwrap_or(0),
+                    name: item["name"].as_str().unwrap_or("").to_string(),
+                    track_count: item["trackCount"].as_u64().unwrap_or(0),
+                    cover_img_url: item["coverImgUrl"].as_str().map(|s| s.to_string()),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(playlists)
+}
+
+#[tauri::command]
+async fn netease_playlist_detail(id: String) -> Result<Vec<NeteaseSong>, String> {
+    let cookie = load_cookie();
+    let client = reqwest::Client::new();
+
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
+    );
+    headers.insert(
+        reqwest::header::REFERER,
+        "https://music.163.com".parse().unwrap(),
+    );
+    if !cookie.is_empty() {
+        headers.insert(reqwest::header::COOKIE, cookie.parse().unwrap());
+    }
+
+    let url = format!("https://music.163.com/api/playlist/detail?id={}&limit=1000", id);
+
+    let resp = client
+        .get(&url)
+        .headers(headers)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("HTTP {}: {}", status.as_u16(), &text[..text.len().min(200)]));
+    }
+
+    let data: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Parse JSON failed: {}", e))?;
+
+    // Check API response code
+    let code = data["code"].as_u64().unwrap_or(0);
+    if code != 200 {
+        let msg = data["message"].as_str().unwrap_or("Unknown error");
+        log::warn!("Playlist detail API error {}: {}", code, msg);
+        return Err(format!("API error {}: {}", code, msg));
+    }
+
+    // Try result.tracks first (old API), fallback to playlist.tracks
+    let tracks_array = data["result"]["tracks"]
+        .as_array()
+        .or_else(|| data["playlist"]["tracks"].as_array());
+
+    let tracks: Vec<NeteaseSong> = tracks_array
+        .map(|arr| {
+            arr.iter()
+                .map(|item| {
+                    let artists = item["ar"]
+                        .as_array()
+                        .map(|ar| {
+                            ar.iter()
+                                .map(|a| NeteaseArtist {
+                                    name: a["name"].as_str().unwrap_or("").to_string(),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    NeteaseSong {
+                        id: item["id"].as_u64().unwrap_or(0),
+                        name: item["name"].as_str().unwrap_or("").to_string(),
+                        artists,
+                        album: NeteaseAlbum {
+                            name: item["al"]["name"].as_str().unwrap_or("").to_string(),
+                            pic_url: item["al"]["picUrl"].as_str().map(|s| s.to_string()),
+                        },
+                        duration: item["dt"].as_u64().unwrap_or(0),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    log::info!("Playlist detail: got {} tracks for id {}", tracks.len(), id);
+    Ok(tracks)
+}
+
+fn load_tts_config() -> (String, String, String) {
+    // Defaults
+    let default_key = "";
+    let default_model = "mimo-v2.5-tts";
+    let default_url = "https://api.xiaomimimo.com/v1/chat/completions";
+
+    let mut api_key = String::new();
+    let mut model = String::new();
+    let mut api_url = String::new();
+
+    // Check environment variables
+    for (env_name, target) in [
+        ("VITE_TTS_KEY", &mut api_key),
+        ("VITE_TTS_MODEL", &mut model),
+        ("VITE_TTS_URL", &mut api_url),
+    ] {
+        if let Ok(val) = std::env::var(env_name) {
+            if !val.is_empty() && target.is_empty() {
+                *target = val;
+            }
+        }
+    }
+    // Fallback: VITE_CHAT_API_KEY also works for TTS
+    if api_key.is_empty() {
+        if let Ok(val) = std::env::var("VITE_CHAT_API_KEY") {
+            if !val.is_empty() {
+                api_key = val;
+            }
+        }
+    }
+
+    // Try .env files for missing values
+    let mut try_load = |env_path: &std::path::Path| -> Option<(String, String)> {
+        if env_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(env_path) {
+                let mut found_key = String::new();
+                let mut found_url = String::new();
+                for line in content.lines() {
+                    for key in ["VITE_TTS_KEY=", "VITE_CHAT_API_KEY=", "VITE_TTS_URL=", "VITE_TTS_MODEL="] {
+                        if line.starts_with(key) {
+                            let val = line.trim_start_matches(key).trim();
+                            if !val.is_empty() {
+                                match key {
+                                    "VITE_TTS_MODEL=" => { if model.is_empty() { model = val.to_string(); } }
+                                    "VITE_TTS_URL=" => { if found_url.is_empty() { found_url = val.to_string(); } }
+                                    _ => { if found_key.is_empty() { found_key = val.to_string(); } }
+                                }
+                            }
+                        }
+                    }
+                }
+                if !found_key.is_empty() || !found_url.is_empty() {
+                    return Some((found_key, found_url));
+                }
+            }
+        }
+        None
+    };
+
+    // Search .env in standard locations
+    if let Some(app_dir) = dirs::data_local_dir() {
+        try_load(&app_dir.join("claudio").join(".env"));
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            try_load(&exe_dir.join(".env"));
+            try_load(&exe_dir.join("claudio").join(".env"));
+            try_load(&exe_dir.join("resources").join(".env"));
+        }
+    }
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    try_load(&manifest_dir.join("..").join(".env"));
+    try_load(&manifest_dir.join(".env"));
+    try_load(&std::path::PathBuf::from(".env"));
+
+    (
+        if api_key.is_empty() { default_key.to_string() } else { api_key },
+        if model.is_empty() { default_model.to_string() } else { model },
+        if api_url.is_empty() { default_url.to_string() } else { api_url },
+    )
+}
+
+#[tauri::command]
+async fn tts_synthesize(text: String) -> Result<String, String> {
+    let (api_key, model, api_url) = load_tts_config();
+
+    if api_key.is_empty() {
+        return Err("TTS API key not configured".to_string());
+    }
+
+    let voice_style = "用清澈温柔的女声，语调平稳略带冷淡，像一个忠诚的天使在轻声播报，声音空灵治愈，不带太多情感起伏但能感受到关心。";
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [
+            { "role": "user", "content": voice_style },
+            { "role": "assistant", "content": text }
+        ],
+        "audio": {
+            "format": "wav",
+            "voice": "茉莉"
+        }
+    });
+
+    let resp = client
+        .post(&api_url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("TTS request failed: {}", e))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("TTS HTTP {}: {}", status.as_u16(), &text[..text.len().min(200)]));
+    }
+
+    let data: serde_json::Value = resp.json().await.map_err(|e| format!("TTS parse error: {}", e))?;
+
+    // Extract base64 audio from response
+    let audio_base64 = data["choices"][0]["message"]["audio"]["data"]
+        .as_str()
+        .or_else(|| data["audio"]["data"].as_str())
+        .or_else(|| data["data"]["audio"].as_str())
+        .ok_or("No audio data in TTS response")?;
+
+    Ok(audio_base64.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -680,12 +1069,16 @@ pub fn run() {
             toggle_like,
             save_playlist,
             get_playlists,
+            delete_playlist,
             set_preference,
             get_preference,
             netease_search,
             netease_song_url,
             netease_song_detail,
             netease_lyric,
+            netease_user_playlists,
+            netease_playlist_detail,
+            tts_synthesize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

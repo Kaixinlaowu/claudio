@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from 'react';
-import { List, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1 } from 'lucide-react';
+import { List, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1, Sparkles } from 'lucide-react';
 import styles from './PlayControls.module.css';
 import usePlayerStore from '../../lib/state/playerStore';
 import { formatDuration } from '../../lib/api/netease';
@@ -21,6 +21,8 @@ const PlayControls: React.FC<PlayControlsProps> = ({ onPlaylistToggle }) => {
     toggleRepeat,
     shuffle,
     toggleShuffle,
+    aiRecommend,
+    toggleAiRecommend,
   } = usePlayerStore();
 
   const progressRef = useRef<HTMLDivElement>(null);
@@ -114,6 +116,14 @@ const PlayControls: React.FC<PlayControlsProps> = ({ onPlaylistToggle }) => {
           <Shuffle size={18} />
         </button>
 
+        <button
+          className={`${styles.controlBtn} ${repeatMode !== 'none' ? styles.active : ''}`}
+          onClick={toggleRepeat}
+          aria-label="循环模式"
+        >
+          {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+        </button>
+
         <button className={styles.controlBtn} onClick={playPrev} aria-label="上一首">
           <SkipBack size={20} />
         </button>
@@ -132,11 +142,12 @@ const PlayControls: React.FC<PlayControlsProps> = ({ onPlaylistToggle }) => {
         </button>
 
         <button
-          className={`${styles.controlBtn} ${repeatMode !== 'none' ? styles.active : ''}`}
-          onClick={toggleRepeat}
-          aria-label="循环模式"
+          className={`${styles.controlBtn} ${aiRecommend ? styles.active : ''}`}
+          onClick={toggleAiRecommend}
+          aria-label="AI 推荐"
+          title={aiRecommend ? 'AI 推荐已开启' : 'AI 推荐'}
         >
-          {repeatMode === 'one' ? <Repeat1 size={18} /> : <Repeat size={18} />}
+          <Sparkles size={18} />
         </button>
       </div>
     </div>

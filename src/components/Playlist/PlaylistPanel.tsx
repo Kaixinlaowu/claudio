@@ -1,10 +1,13 @@
-import { Music, X, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Music, X, Trash2, Plus } from 'lucide-react';
 import styles from './PlaylistPanel.module.css';
 import usePlayerStore from '../../lib/state/playerStore';
 import { formatDuration } from '../../lib/api/netease';
+import { SaveToPlaylistPopover } from './SaveToPlaylistPopover';
 
 const PlaylistPanel: React.FC = () => {
   const { playlist, currentSong, setCurrentSong, play, removeFromPlaylist, clearPlaylist, pause } = usePlayerStore();
+  const [popoverIndex, setPopoverIndex] = useState<number | null>(null);
 
   const handlePlaySong = (index: number) => {
     const song = playlist[index];
@@ -56,13 +59,32 @@ const PlaylistPanel: React.FC = () => {
                   <span className={styles.meta}>{song.artist}</span>
                 </div>
                 <span className={styles.duration}>{formatDuration(song.duration)}</span>
-                <button
-                  className={styles.removeBtn}
-                  onClick={(e) => handleRemove(e, index)}
-                  title="移除"
-                >
-                  <X size={14} />
-                </button>
+                <div className={styles.actions}>
+                  <button
+                    className={styles.saveBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPopoverIndex(popoverIndex === index ? null : index);
+                    }}
+                    title="保存到歌单"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <button
+                    className={styles.removeBtn}
+                    onClick={(e) => handleRemove(e, index)}
+                    title="移除"
+                  >
+                    <X size={14} />
+                  </button>
+                  {popoverIndex === index && (
+                    <SaveToPlaylistPopover
+                      songId={song.id}
+                      songName={song.name}
+                      onClose={() => setPopoverIndex(null)}
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>
