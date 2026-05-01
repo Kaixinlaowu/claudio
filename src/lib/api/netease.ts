@@ -11,6 +11,10 @@ interface NeteaseSong {
   duration: number;
 }
 
+interface NeteaseSearchResponse {
+  songs?: NeteaseSong[];
+}
+
 interface NeteaseSongDetail {
   id: number;
   name: string;
@@ -27,17 +31,18 @@ function ensureHttps(url: string): string {
 // Search songs using Tauri IPC
 export async function searchSongs(keyword: string): Promise<Song[]> {
   try {
-    const result: any = await invoke('netease_search', { keywords: keyword });
+    const raw: unknown = await invoke('netease_search', { keywords: keyword });
 
     let songs: NeteaseSong[] = [];
-    if (result && typeof result === 'object') {
+    if (raw && typeof raw === 'object') {
+      const result = raw as NeteaseSearchResponse;
       if (Array.isArray(result.songs)) {
         songs = result.songs;
-      } else if (Array.isArray(result)) {
-        songs = result;
+      } else if (Array.isArray(raw)) {
+        songs = raw as NeteaseSong[];
       }
-    } else if (Array.isArray(result)) {
-      songs = result;
+    } else if (Array.isArray(raw)) {
+      songs = raw as NeteaseSong[];
     }
 
     return songs.map((s: NeteaseSong) => ({

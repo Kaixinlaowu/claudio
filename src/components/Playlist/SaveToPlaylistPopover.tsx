@@ -90,6 +90,8 @@ export function SaveToPlaylistPopover({ songId, songName, onClose }: SaveToPlayl
                 <div className={styles.itemIcon}>
                   {isSaved ? (
                     <Check size={14} className={styles.checkIcon} />
+                  ) : pl.coverUrl ? (
+                    <img src={pl.coverUrl} alt="" className={styles.itemCover} loading="lazy" />
                   ) : (
                     <ListMusic size={14} />
                   )}

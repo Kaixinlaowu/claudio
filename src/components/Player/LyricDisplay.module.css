@@ -1,24 +1,24 @@
 .container {
   width: 100%;
-  max-height: 220px;
+  max-height: 320px;
   overflow-y: auto;
   overflow-x: hidden;
   mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0, 0, 0, 0.3) 10%,
-    rgba(0, 0, 0, 1) 25%,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0.3) 90%,
+    rgba(0, 0, 0, 0.3) 8%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 80%,
+    rgba(0, 0, 0, 0.3) 92%,
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0, 0, 0, 0.3) 10%,
-    rgba(0, 0, 0, 1) 25%,
-    rgba(0, 0, 0, 1) 75%,
-    rgba(0, 0, 0, 0.3) 90%,
+    rgba(0, 0, 0, 0.3) 8%,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 1) 80%,
+    rgba(0, 0, 0, 0.3) 92%,
     transparent 100%
   );
   scrollbar-width: none;
@@ -44,15 +44,15 @@
 
 .main {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-secondary);
   line-height: 1.6;
   transition: all 0.3s ease;
 }
 
 .sub {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: 3px 0 0;
+  font-size: 13px;
   color: var(--text-tertiary);
   line-height: 1.5;
   transition: all 0.3s ease;
@@ -60,7 +60,7 @@
 
 .active .main {
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
 }
 

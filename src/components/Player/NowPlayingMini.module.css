@@ -56,3 +56,21 @@
 .likeBtn.liked {
   color: var(--accent-red);
 }
+
+@media (aspect-ratio < 3/4) {
+  .container {
+    min-width: 0;
+    max-width: none;
+    gap: var(--space-2);
+  }
+
+  .cover {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+  }
+
+  .info {
+    display: none;
+  }
+}

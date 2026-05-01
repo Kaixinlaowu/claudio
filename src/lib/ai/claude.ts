@@ -125,12 +125,15 @@ function tryParseJson(text: string): AIResponse | null {
     const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object') return null;
 
-    // Case 1: Standard format { say, play, segue }
+    // Case 1: Standard format { say, play, queue, playlist, player, segue }
     if (typeof parsed.say === 'string') {
       console.log('Parsed JSON response:', parsed);
       return {
         say: parsed.say,
         play: normalizePlayIntent(parsed.play),
+        queue: normalizeQueueAction(parsed.queue),
+        playlist: normalizePlaylistAction(parsed.playlist),
+        player: normalizePlayerAction(parsed.player),
         reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
         segue: typeof parsed.segue === 'string' ? parsed.segue : undefined,
       };
@@ -192,6 +195,60 @@ function normalizePlayIntent(play: unknown): Array<{ query: string; count?: numb
     .map((item) => ({
       query: item.query as string,
       count: typeof item.count === 'number' ? item.count : 3,
+    }));
+
+  return result.length > 0 ? result : undefined;
+}
+
+function normalizeQueueAction(queue: unknown): Array<{ action: 'add' | 'insert_next' | 'remove_index' | 'clear' | 'play_index' | 'describe'; query?: string; index?: number }> | undefined {
+  if (!Array.isArray(queue) || queue.length === 0) return undefined;
+
+  const validActions = ['add', 'insert_next', 'remove_index', 'clear', 'play_index', 'describe'] as const;
+  const result = queue
+    .filter((item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null &&
+      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
+    )
+    .map((item) => ({
+      action: item.action as typeof validActions[number],
+      query: typeof item.query === 'string' ? item.query : undefined,
+      index: typeof item.index === 'number' ? item.index : undefined,
+    }));
+
+  return result.length > 0 ? result : undefined;
+}
+
+function normalizePlaylistAction(playlist: unknown): Array<{ action: 'create' | 'add_song' | 'remove_song' | 'play_playlist'; name?: string; query?: string; playlistName?: string }> | undefined {
+  if (!Array.isArray(playlist) || playlist.length === 0) return undefined;
+
+  const validActions = ['create', 'add_song', 'remove_song', 'play_playlist'] as const;
+  const result = playlist
+    .filter((item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null &&
+      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
+    )
+    .map((item) => ({
+      action: item.action as typeof validActions[number],
+      name: typeof item.name === 'string' ? item.name : undefined,
+      query: typeof item.query === 'string' ? item.query : undefined,
+      playlistName: typeof item.playlistName === 'string' ? item.playlistName : undefined,
+    }));
+
+  return result.length > 0 ? result : undefined;
+}
+
+function normalizePlayerAction(player: unknown): Array<{ action: 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode'; value?: string }> | undefined {
+  if (!Array.isArray(player) || player.length === 0) return undefined;
+
+  const validActions = ['play', 'pause', 'next', 'prev', 'volume_up', 'volume_down', 'mode'] as const;
+  const result = player
+    .filter((item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null &&
+      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
+    )
+    .map((item) => ({
+      action: item.action as typeof validActions[number],
+      value: typeof item.value === 'string' ? item.value : undefined,
     }));
 
   return result.length > 0 ? result : undefined;

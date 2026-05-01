@@ -3,7 +3,7 @@ import styles from './PlaylistSongsPanel.module.css';
 import { usePlaylistStore } from '../../lib/state/playlistStore';
 import type { PlaylistInfo } from '../../lib/state/playlistStore';
 import usePlayerStore from '../../lib/state/playerStore';
-import { getSongUrl, formatDuration } from '../../lib/api/netease';
+import { formatDuration } from '../../lib/api/netease';
 
 interface PlaylistSongsPanelProps {
   playlist: PlaylistInfo;
@@ -12,17 +12,12 @@ interface PlaylistSongsPanelProps {
 
 export function PlaylistSongsPanel({ playlist, onBack }: PlaylistSongsPanelProps) {
   const { playlistSongs, loading, removeSongFromPlaylist } = usePlaylistStore();
-  const { currentSong, setCurrentSong, play } = usePlayerStore();
+  const { currentSong, setPlaylist, playSongAtIndex } = usePlayerStore();
 
-  const handlePlaySong = async (index: number) => {
-    const song = playlistSongs[index];
-    if (!song) return;
-    let url = song.url;
-    if (!url) {
-      url = await getSongUrl(song.id);
-    }
-    setCurrentSong({ ...song, url });
-    play();
+  const handlePlaySong = (index: number) => {
+    if (!playlistSongs.length) return;
+    setPlaylist(playlistSongs);
+    playSongAtIndex(index);
   };
 
   const handleRemove = async (e: React.MouseEvent, songId: string) => {

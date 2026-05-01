@@ -30,7 +30,7 @@
 | State | Zustand |
 | Music API | Netease Music (via Tauri IPC commands) |
 | AI | Claude Code subprocess |
-| TTS | FishAudio / MiniMax |
+| TTS | XiaoMi TTS (mimo-v2.5-tts) |
 | Database | SQLite |
 
 ---
@@ -104,8 +104,8 @@ Installer will be at: `claudio/src-tauri/target/release/bundle/nsis/Claudio_0.1.
 claudio/
 ├── src-tauri/
 │   ├── src/
-│   │   ├── lib.rs           # Tauri main entry, IPC commands
-│   │   └── netease/         # Netease API handlers (lyrics, search, song_url)
+│   │   └── lib.rs           # Tauri main entry, DB, Netease API, TTS commands
+│   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── src/
 │   ├── lib/
@@ -124,19 +124,26 @@ claudio/
 
 ## Project Status
 
-**Active Development** — Core features working, search and playback operational.
+**Active Development** — Core features working, code quality and performance optimized.
 
 ### What's Working
 - Music search via Netease Music
 - Playback of free and VIP songs
-- History and liked songs storage
+- History and liked songs storage (SQLite with indexed queries)
 - AI DJ chat interface
-- TTS voice announcements
+- TTS voice announcements (XiaoMi TTS API)
 - AI queue operations (add, insert, remove, clear, jump via natural language)
 - Mute/unmute with volume save/restore
 - LRC lyrics display with auto-scroll
 - Loading animations and error boundary
 - Loop/shuffle/volume quick commands
+- Browser fallback (TitleBar graceful degradation)
+
+### Recent Improvements
+- **Security**: Removed hardcoded credentials, API keys passed via frontend env
+- **Performance**: Shared HTTP client (connection pooling), prompt caching, optimistic history updates, SQLite indexes
+- **Code Quality**: TypeScript strict mode, eliminated `any` types, extracted reusable helpers
+- **Build**: Tokio features minimized for faster Rust compilation, Vite es2023 target
 
 ---
 

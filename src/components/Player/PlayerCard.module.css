@@ -39,11 +39,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--duration-normal) var(--ease-out-expo);
+  animation: vinylIn 0.5s var(--ease-out-expo) both;
+  transition: box-shadow var(--duration-normal) var(--ease-out-expo);
 }
 
 .vinyl.spinning {
-  animation: spin 3s linear infinite;
+  animation: spin 3s linear infinite, vinylIn 0.5s var(--ease-out-expo) both;
 }
 
 .vinylCenter {
@@ -67,12 +68,27 @@
 
 .coverArt {
   position: absolute;
-  width: 40%;
-  height: 40%;
+  width: 80%;
+  height: 80%;
   border-radius: 50%;
   object-fit: cover;
   z-index: 1;
   border: 3px solid var(--bg-base);
+}
+
+.coverArt.songChange {
+  animation: coverIn 0.5s var(--ease-out-expo) both;
+}
+
+@keyframes coverIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-30deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
 }
 
 .songInfo {
@@ -84,6 +100,18 @@
   gap: var(--space-xs);
   position: relative;
   pointer-events: auto;
+  animation: infoIn 0.4s var(--ease-out-expo) both;
+}
+
+@keyframes infoIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .songName {
@@ -101,38 +129,23 @@
   font-weight: 400;
 }
 
-.lyricToggle {
-  margin-top: var(--space-3);
-  padding: 6px 20px;
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  font-weight: 500;
-}
-
-.lyricToggle:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px);
-}
-
-.lyricToggleActive {
-  background: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
-  color: var(--accent-primary);
-}
-
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes vinylIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) rotate(-20deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
   }
 }
 

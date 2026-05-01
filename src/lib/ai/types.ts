@@ -2,6 +2,8 @@ export interface AIResponse {
   say: string;
   play?: PlayIntent[];
   queue?: QueueAction[];
+  playlist?: PlaylistAction[];
+  player?: PlayerAction[];
   reason?: string;
   segue?: string;
 }
@@ -17,6 +19,19 @@ export interface QueueAction {
   query?: string;
   index?: number;
   reason?: string;
+}
+
+export interface PlaylistAction {
+  action: 'create' | 'add_song' | 'remove_song' | 'play_playlist';
+  name?: string;
+  query?: string;
+  playlistName?: string;
+  reason?: string;
+}
+
+export interface PlayerAction {
+  action: 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode';
+  value?: string;
 }
 
 export interface ChatMessage {

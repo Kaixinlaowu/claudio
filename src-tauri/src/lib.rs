@@ -2,7 +2,7 @@
 
 use rusqlite::{Connection, Result as SqliteResult, params};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::State;
 use chrono::Utc;
 use thiserror::Error;
@@ -122,6 +122,35 @@ pub struct AppState {
     pub db: Mutex<Connection>,
 }
 
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn get_http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to create HTTP client")
+    })
+}
+
+fn netease_headers(cookie: &str) -> reqwest::header::HeaderMap {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+    );
+    headers.insert(
+        reqwest::header::REFERER,
+        reqwest::header::HeaderValue::from_static("https://music.163.com"),
+    );
+    if !cookie.is_empty() {
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(cookie) {
+            headers.insert(reqwest::header::COOKIE, val);
+        }
+    }
+    headers
+}
+
 fn init_db(conn: &Connection) -> SqliteResult<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS plays (
@@ -155,6 +184,10 @@ fn init_db(conn: &Connection) -> SqliteResult<()> {
         )",
         [],
     )?;
+
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_song_id ON plays(song_id)", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_liked ON plays(liked)", [])?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_played_at ON plays(played_at)", [])?;
 
     Ok(())
 }
@@ -392,9 +425,8 @@ fn load_cookie() -> String {
         }
     }
 
-    log::warn!("No NETEASE_COOKIE found, using fallback hardcoded cookie");
-    // Fallback hardcoded cookie for packaged builds
-    String::from("MUSIC_U=007E7FBB4BEB13E354FE205035D7CEA1E6207E39EA1036A601BEEE9D5476A4027EBB51733F45FC3E724BFE926810E1C7C6305E739459921355DEFFD14B4D05AF24D4C6D6A7895A998DA6D84702D22EBBE86C917F42FA9ED24F9E90E7C9BCF182F17D9E60A7240A2FD034652889ABC077EBC5F4627B018F397B927D8434E6256BB4F64B6CD11C07961511D92C6684FE6B6DF2D8DC668B36E56CB587A6B316EEA6F13C17D57DAE4B938B37A3E3BC462EBFF59341D803442F4D7F0E7A10EA8A873CDC94BFFE59D59E18D0CFC30AF0A47ABBCC0C8DBB0FAA1394858EB77E39A680EDD58CD0F310ADCD3054074038A199C42A6EA77081F18EEDA4ED5D3E4CF8B13D44573468CA9EB3111B98D0E3EA88204B6FD5F44BDD74F2B85906993CB7138E11A041E03769554DA7D396EEE5A9CD7B20B0677202DDB57DF495B8C887223F98F8571BF6206929C9C9A5C97F1E2C7245561902E4BD3B8986585F7F3A13EB04DC97D87D5288068EE24BB06224B7D58A7D4941BC2C8C3A0AC840B21ABEE37C0D6F84D210B8435B9DCE20EDBFA6FBADB4D43AB814A19E0CB77BA184729B838E6A1E9E5FE7")
+    log::warn!("No NETEASE_COOKIE found");
+    String::new()
 }
 
 // Netease API Tauri commands - using IPC instead of HTTP
@@ -403,29 +435,12 @@ async fn netease_search(keywords: String) -> Result<NeteaseSearchResult, String>
     log::info!("[NETEASE_CMD] netease_search command called with keywords: {}", keywords);
     log::info!("[NETEASE_CMD] This is the IPC command - NOT the HTTP server");
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = get_http_client();
 
     let cookie = load_cookie();
     log::info!("[NETEASE_CMD] cookie length: {}", cookie.len());
 
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(
-            reqwest::header::COOKIE,
-            cookie.parse().unwrap(),
-        );
-    }
+    let headers = netease_headers(&cookie);
 
     let url = "https://music.163.com/api/search/get";
     let resp = client
@@ -544,27 +559,10 @@ async fn netease_search(keywords: String) -> Result<NeteaseSearchResult, String>
 
 #[tauri::command]
 async fn netease_song_url(id: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = get_http_client();
 
     let cookie = load_cookie();
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(
-            reqwest::header::COOKIE,
-            cookie.parse().unwrap(),
-        );
-    }
+    let headers = netease_headers(&cookie);
 
     // Try quality levels from high to low (VIP songs need lower bitrate)
     let api_url = "https://music.163.com/api/song/enhance/player/url";
@@ -634,27 +632,10 @@ async fn netease_song_detail(ids: Vec<String>) -> Result<Vec<NeteaseSongDetail>,
         return Ok(vec![]);
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = get_http_client();
 
     let cookie = load_cookie();
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(
-            reqwest::header::COOKIE,
-            cookie.parse().unwrap(),
-        );
-    }
+    let headers = netease_headers(&cookie);
 
     let ids_param = format!("[{}]", ids.join(","));
     let url = "https://music.163.com/api/song/detail";
@@ -712,27 +693,10 @@ async fn netease_song_detail(ids: Vec<String>) -> Result<Vec<NeteaseSongDetail>,
 
 #[tauri::command]
 async fn netease_lyric(id: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = get_http_client();
 
     let cookie = load_cookie();
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(
-            reqwest::header::COOKIE,
-            cookie.parse().unwrap(),
-        );
-    }
+    let headers = netease_headers(&cookie);
 
     let url = "https://music.163.com/api/song/lyric";
 
@@ -759,27 +723,15 @@ async fn netease_lyric(id: String) -> Result<String, String> {
 #[tauri::command]
 async fn netease_user_playlists(uid: String) -> Result<Vec<NeteaseUserPlaylist>, String> {
     let cookie = load_cookie();
-    let client = reqwest::Client::new();
+    let client = get_http_client();
 
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(reqwest::header::COOKIE, cookie.parse().unwrap());
-    }
+    let headers = netease_headers(&cookie);
 
     let url = format!("https://music.163.com/api/user/playlist?uid={}&limit=100&offset=0", uid);
 
     let resp = client
         .get(&url)
         .headers(headers)
-        .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
@@ -821,27 +773,15 @@ async fn netease_user_playlists(uid: String) -> Result<Vec<NeteaseUserPlaylist>,
 #[tauri::command]
 async fn netease_playlist_detail(id: String) -> Result<Vec<NeteaseSong>, String> {
     let cookie = load_cookie();
-    let client = reqwest::Client::new();
+    let client = get_http_client();
 
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".parse().unwrap(),
-    );
-    headers.insert(
-        reqwest::header::REFERER,
-        "https://music.163.com".parse().unwrap(),
-    );
-    if !cookie.is_empty() {
-        headers.insert(reqwest::header::COOKIE, cookie.parse().unwrap());
-    }
+    let headers = netease_headers(&cookie);
 
     let url = format!("https://music.163.com/api/playlist/detail?id={}&limit=1000", id);
 
     let resp = client
         .get(&url)
         .headers(headers)
-        .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
@@ -986,8 +926,16 @@ fn load_tts_config() -> (String, String, String) {
 }
 
 #[tauri::command]
-async fn tts_synthesize(text: String) -> Result<String, String> {
-    let (api_key, model, api_url) = load_tts_config();
+async fn tts_synthesize(
+    text: String,
+    api_key: Option<String>,
+    model: Option<String>,
+    api_url: Option<String>,
+) -> Result<String, String> {
+    let (fallback_key, fallback_model, fallback_url) = load_tts_config();
+    let api_key = api_key.filter(|k| !k.is_empty()).unwrap_or(fallback_key);
+    let model = model.filter(|m| !m.is_empty()).unwrap_or(fallback_model);
+    let api_url = api_url.filter(|u| !u.is_empty()).unwrap_or(fallback_url);
 
     if api_key.is_empty() {
         return Err("TTS API key not configured".to_string());
@@ -995,7 +943,7 @@ async fn tts_synthesize(text: String) -> Result<String, String> {
 
     let voice_style = "用清澈温柔的女声，语调平稳略带冷淡，像一个忠诚的天使在轻声播报，声音空灵治愈，不带太多情感起伏但能感受到关心。";
 
-    let client = reqwest::Client::new();
+    let client = get_http_client();
     let body = serde_json::json!({
         "model": model,
         "messages": [
@@ -1013,7 +961,6 @@ async fn tts_synthesize(text: String) -> Result<String, String> {
         .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&body)
-        .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| format!("TTS request failed: {}", e))?;

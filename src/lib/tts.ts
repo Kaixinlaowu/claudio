@@ -31,7 +31,12 @@ export async function speak(text: string): Promise<void> {
   try {
     console.log('TTS via Tauri IPC, text length:', cleanText.length);
 
-    const audioBase64 = await invoke<string>('tts_synthesize', { text: cleanText });
+    const audioBase64 = await invoke<string>('tts_synthesize', {
+      text: cleanText,
+      apiKey: import.meta.env.VITE_TTS_KEY || '',
+      model: import.meta.env.VITE_TTS_MODEL || '',
+      apiUrl: import.meta.env.VITE_TTS_URL || '',
+    });
 
     if (audioBase64) {
       console.log('TTS audio received, playing...');

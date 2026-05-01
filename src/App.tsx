@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import SearchBar from './components/Search/SearchBar';
 import { ChatBubble } from './components/Chat/ChatBubble';
 import { AudioPlayer } from './components/Player/AudioPlayer';
@@ -10,10 +10,12 @@ import { HistoryButton } from './components/Player/HistoryButton';
 import { FavoritesButton } from './components/Player/FavoritesButton';
 import { PlaylistsButton } from './components/Player/PlaylistsButton';
 import { TTSIndicator } from './components/Player/TTSIndicator';
+import { Particles } from './components/Particles';
 import PlaylistPanel from './components/Playlist/PlaylistPanel';
 import { PlaylistsPanel } from './components/Playlist/PlaylistsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Spinner } from './components/Spinner';
+import { TitleBar } from './components/TitleBar';
 import usePlayerStore from './lib/state/playerStore';
 import { usePlaylistStore } from './lib/state/playlistStore';
 import { scheduler } from './lib/scheduler';
@@ -53,6 +55,19 @@ function AppContent() {
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+
+  // Reveal button hover state
+  const [revealHovered, setRevealHovered] = useState(false);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRevealZoneEnter = useCallback(() => {
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    setRevealHovered(true);
+  }, []);
+
+  const handleRevealZoneLeave = useCallback(() => {
+    revealTimerRef.current = setTimeout(() => setRevealHovered(false), 300);
+  }, []);
 
   const resetHideTimer = useCallback(() => {
     setBarVisible(true);
@@ -105,15 +120,20 @@ function AppContent() {
     }
   }, [isPlaying, resetHideTimer]);
 
-  const coverStyle = currentSong?.coverUrl
-    ? { '--cover-url': `url(${currentSong.coverUrl})` } as React.CSSProperties
-    : {};
+  const coverStyle = useMemo(
+    () => currentSong?.coverUrl
+      ? { '--cover-url': `url(${currentSong.coverUrl})` } as React.CSSProperties
+      : {},
+    [currentSong?.coverUrl],
+  );
 
   return (
-    <div className="app">
+    <div className="app" style={coverStyle}>
+      <TitleBar />
+      <Particles />
       <AudioPlayer />
 
-      <main className={`main ${showPlaylist ? '' : 'noPanel'}`} style={coverStyle}>
+      <main className={`main ${showPlaylist ? '' : 'noPanel'}`}>
         {/* 背景遮罩 - 播放队列隐藏时点击关闭 */}
         <div
           className={`mainOverlay ${showPlaylist ? '' : 'visible'}`}
@@ -166,9 +186,21 @@ function AppContent() {
 
         {/* 隐藏时的拉出按钮 */}
         {!showPlaylist && (
-          <button className="revealBtn" onClick={showPlaylistPanel} aria-label="显示播放队列">
-            <span className="revealBtnArrow">&lt;</span>
-          </button>
+          <>
+            <div
+              className="revealZone"
+              onMouseEnter={handleRevealZoneEnter}
+              onMouseLeave={handleRevealZoneLeave}
+            />
+            <button
+              className={`revealBtn ${revealHovered ? 'visible' : ''}`}
+              onClick={showPlaylistPanel}
+              onMouseLeave={handleRevealZoneLeave}
+              aria-label="显示播放队列"
+            >
+              <span className="revealBtnArrow">&lt;</span>
+            </button>
+          </>
         )}
       </main>
 

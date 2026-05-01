@@ -9,6 +9,34 @@
   height: 100vh;
   background: var(--bg-base);
   overflow: hidden;
+  position: relative;
+}
+
+/* Full-screen cover background on .app (covers footer area too) */
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--cover-url);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Main Content Area */
@@ -16,10 +44,12 @@
   flex: 1;
   display: grid;
   grid-template-columns: 1fr minmax(280px, 380px);
+  grid-template-rows: 1fr;
   gap: 0;
   overflow: hidden;
   position: relative;
   min-height: 0;
+  z-index: 1;
 }
 
 /* 背景遮罩 - 可点击关闭播放队列 */
@@ -35,32 +65,7 @@
   cursor: pointer;
 }
 
-/* Cover background - entire main area */
-.main::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--cover-url);
-  background-size: cover;
-  background-position: center;
-  opacity: 0.35;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.main::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.6) 0%,
-    rgba(0, 0, 0, 0.3) 50%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
+/* Cover background removed - now on .app::before/::after */
 
 .main > * {
   position: relative;
@@ -82,8 +87,9 @@
 }
 
 .nowPlaying.fullWidth {
-  grid-column: 1 / -1;
-  position: relative;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 
 /* Right Panel - Frosted Glass */
@@ -103,6 +109,7 @@
   transform: translateX(100%);
   opacity: 0;
   pointer-events: none;
+  transition: none;
 }
 
 .main.noPanel {
@@ -126,13 +133,30 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: opacity 0.3s ease, background var(--transition-fast);
   z-index: 50;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.revealBtn:hover {
+.revealBtn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.revealBtn.visible:hover {
   background: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
+}
+
+/* Right edge hover zone to reveal the button */
+.revealZone {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 48px;
+  height: 100%;
+  z-index: 49;
 }
 
 .revealBtnArrow {
@@ -226,6 +250,10 @@
 
 .playerBar.hidden {
   transform: translateY(100%);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .playerBarLeft {
@@ -288,4 +316,62 @@
   .playerBar {
     grid-template-columns: 1fr auto;
   }
+}
+
+/* Narrow screen - aspect ratio < 3:4 */
+@media (aspect-ratio < 3/4) {
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    overflow-y: auto;
+  }
+
+  .nowPlaying {
+    padding: var(--space-4);
+    min-height: 0;
+  }
+
+  .sidePanel {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    max-height: 240px;
+    max-width: 100%;
+  }
+
+  .playerBar {
+    height: 80px;
+    grid-template-columns: auto 1fr auto;
+    padding: 0 var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .playerBarLeft {
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .playerBarRight {
+    display: flex;
+    gap: var(--space-2);
+  }
+}
+
+/* Animation optimizations */
+.sidePanel {
+  transition: transform var(--duration-slow) var(--ease-out-expo),
+              opacity var(--duration-slow) var(--ease-out-expo);
+}
+
+.playerBar {
+  transition: transform 0.4s var(--ease-out-expo);
+}
+
+.nowPlaying {
+  transition: transform var(--duration-slow) var(--ease-out-expo),
+              opacity var(--duration-slow) var(--ease-out-expo);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }

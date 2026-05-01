@@ -90,7 +90,11 @@ export function PlaylistsPanel() {
               style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className={styles.itemIcon}>
-                <ListMusic size={16} strokeWidth={1.5} />
+                {pl.coverUrl ? (
+                  <img src={pl.coverUrl} alt="" className={styles.itemCover} loading="lazy" />
+                ) : (
+                  <ListMusic size={16} strokeWidth={1.5} />
+                )}
               </div>
               <div className={styles.itemInfo}>
                 <span className={styles.itemName}>{pl.name}</span>

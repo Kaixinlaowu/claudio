@@ -9,16 +9,23 @@ interface PlayerCardProps {
 }
 
 const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false }) => {
-  const { currentSong, isPlaying } = usePlayerStore();
+  const { currentSong, isPlaying, showLyrics } = usePlayerStore();
   const vinylRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
-  const [showLyrics, setShowLyrics] = useState(false);
+  const [songKey, setSongKey] = useState(0);
+  const prevSongIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (vinylRef.current) {
       vinylRef.current.style.animationPlayState = isPlaying ? 'running' : 'paused';
     }
     setImageError(false);
+
+    const songId = currentSong?.id ?? null;
+    if (songId !== prevSongIdRef.current && prevSongIdRef.current !== null) {
+      setSongKey((k) => k + 1);
+    }
+    prevSongIdRef.current = songId;
   }, [isPlaying, currentSong]);
 
   const coverUrl = currentSong?.coverUrl;
@@ -26,10 +33,10 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false
   const vinylSize = fullWidth ? 'min(320px, 60vw)' : 'min(240px, 45vw)';
 
   return (
-    <div className={styles.playerCard} style={fullWidth ? { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%', maxWidth: '400px' } : {}}>
+    <div className={styles.playerCard} style={fullWidth ? { width: '100%', maxWidth: '400px' } : {}}>
       {!showLyrics && (
         <div className={styles.vinylContainer} ref={vinylRef} onClick={onVinylClick} style={{ '--vinyl-size': vinylSize } as React.CSSProperties}>
-          <div className={`${styles.vinyl} ${isPlaying ? styles.spinning : ''}`}>
+          <div className={`${styles.vinyl} ${isPlaying ? styles.spinning : ''}`} key={songKey}>
             <div className={styles.vinylCenter} />
             <div className={styles.vinylGroove} />
             <div className={styles.vinylGroove} />
@@ -39,7 +46,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false
             <img
               src={coverUrl}
               alt={currentSong?.name}
-              className={styles.coverArt}
+              className={`${styles.coverArt} ${songKey > 0 ? styles.songChange : ''}`}
               onError={() => setImageError(true)}
             />
           )}
@@ -50,19 +57,13 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ onVinylClick, fullWidth = false
         <LyricDisplay />
       )}
 
-      <div className={styles.songInfo}>
+      <div className={styles.songInfo} key={songKey}>
         {currentSong ? (
           <>
             <h2 className={styles.songName}>{currentSong.name}</h2>
             <p className={styles.songMeta}>
               {currentSong.artist} · {currentSong.album}
             </p>
-            <button
-              className={`${styles.lyricToggle} ${showLyrics ? styles.lyricToggleActive : ''}`}
-              onClick={() => setShowLyrics(!showLyrics)}
-            >
-              {showLyrics ? '🎵 唱片' : '📝 歌词'}
-            </button>
           </>
         ) : (
           <>

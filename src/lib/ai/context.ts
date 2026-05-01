@@ -31,6 +31,27 @@ async function loadJson(path: string): Promise<string> {
   }
 }
 
+// Module-level prompt cache — loaded once, reused across all buildContext calls
+let promptCache: Record<string, string> = {};
+let promptsLoaded = false;
+
+async function loadPrompts(): Promise<Record<string, string>> {
+  if (promptsLoaded) return promptCache;
+
+  const basePath = '/user';
+  const [systemPrompt, taste, routines, playlists, modRules] = await Promise.all([
+    loadText('/prompts/dj-persona.md'),
+    loadText(`${basePath}/taste.md`),
+    loadText(`${basePath}/routines.md`),
+    loadJson(`${basePath}/playlists.json`),
+    loadText(`${basePath}/mod-rules.md`),
+  ]);
+
+  promptCache = { systemPrompt, taste, routines, playlists, modRules };
+  promptsLoaded = true;
+  return promptCache;
+}
+
 function getEnvironment(): string {
   const now = new Date();
   const hour = now.getHours();
@@ -70,34 +91,27 @@ export async function buildContext(
   userInput: string,
   recentPlays: Song[] = [],
   currentPlaylist: Song[] = [],
-  conversationHistory: ChatMessage[] = []
+  conversationHistory: ChatMessage[] = [],
+  userPlaylists: string = ''
 ): Promise<{
   messages: Array<{ role: string; content: string }>;
   system: string;
 }> {
-  const basePath = '/user';
-
-  const [systemPrompt, taste, routines, playlists, modRules] = await Promise.all([
-    loadText('/prompts/dj-persona.md'),
-    loadText(`${basePath}/taste.md`),
-    loadText(`${basePath}/routines.md`),
-    loadJson(`${basePath}/playlists.json`),
-    loadText(`${basePath}/mod-rules.md`),
-  ]);
+  const prompts = await loadPrompts();
 
   const fragments: ContextFragments = {
-    systemPrompt,
-    userTaste: taste,
-    userRoutines: routines,
-    userPlaylists: playlists,
-    userModRules: modRules,
+    systemPrompt: prompts.systemPrompt,
+    userTaste: prompts.taste,
+    userRoutines: prompts.routines,
+    userPlaylists: prompts.playlists,
+    userModRules: prompts.modRules,
     environment: getEnvironment(),
     recentPlays: formatRecentPlays(recentPlays),
     currentPlaylist: formatPlaylist(currentPlaylist),
     userInput,
   };
 
-  const contextPrompt = `## 当前环境\n${fragments.environment}\n\n## 用户音乐品味\n${fragments.userTaste}\n\n## 用户作息习惯\n${fragments.userRoutines}\n\n## 用户播放列表\n${fragments.userPlaylists}\n\n## 播放历史\n${fragments.recentPlays}\n\n## 当前播放队列\n${fragments.currentPlaylist}`;
+  const contextPrompt = `## 当前环境\n${fragments.environment}\n\n## 用户音乐品味\n${fragments.userTaste}\n\n## 用户作息习惯\n${fragments.userRoutines}\n\n## 用户播放列表\n${fragments.userPlaylists}\n\n## 用户保存的歌单\n${userPlaylists || '暂无歌单'}\n\n## 播放历史\n${fragments.recentPlays}\n\n## 当前播放队列\n${fragments.currentPlaylist}`;
 
   const historyMessages = conversationHistory
     .slice(-10)

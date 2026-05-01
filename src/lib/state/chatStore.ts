@@ -6,6 +6,8 @@ import { chatWithAI } from '../ai/claude';
 import { searchSongs, getSongsDetails } from '../api/netease';
 import { speak } from '../tts';
 import usePlayerStore from './playerStore';
+import { usePlaylistStore } from './playlistStore';
+import type { PlayMode } from './playerStore';
 
 interface ChatState {
   messages: ChatMessage[];
@@ -62,7 +64,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         url: r.url,
         duration: 0,
       }));
-      const { messages: ctxMessages, system } = await buildContext(text, recentHistory, player.playlist, history);
+
+      // Build user playlists context for AI (non-blocking)
+      const plState = usePlaylistStore.getState();
+      const playlistsText = plState.playlists.length > 0
+        ? plState.playlists.map((pl) => `${pl.name}（${pl.songCount}首）`).join('\n')
+        : '';
+      // Load playlists in background if empty (don't block AI response)
+      if (plState.playlists.length === 0) {
+        plState.loadPlaylists().catch(() => {});
+      }
+
+      const { messages: ctxMessages, system } = await buildContext(text, recentHistory, player.playlist, history, playlistsText);
       const aiResponse = await chatWithAI(ctxMessages, system);
 
       console.log('AI response:', aiResponse);
@@ -158,7 +171,101 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
 
-      if (!aiResponse.play?.length && !aiResponse.queue?.length) {
+      // Handle playlist operations from AI
+      if (aiResponse.playlist && aiResponse.playlist.length > 0) {
+        console.log('AI playlist actions:', aiResponse.playlist);
+        const plStore = usePlaylistStore.getState();
+        for (const pa of aiResponse.playlist) {
+          switch (pa.action) {
+            case 'create': {
+              if (pa.name) {
+                await plStore.createPlaylist(pa.name);
+              }
+              break;
+            }
+            case 'add_song': {
+              if (pa.query && pa.playlistName) {
+                const pl = plStore.playlists.find((p) => p.name === pa.playlistName);
+                if (pl) {
+                  const results = await searchSongs(pa.query);
+                  if (results.length > 0) {
+                    await plStore.addSongToPlaylist(pl.id, results[0].id);
+                  }
+                }
+              }
+              break;
+            }
+            case 'remove_song': {
+              if (pa.query && pa.playlistName) {
+                const pl = plStore.playlists.find((p) => p.name === pa.playlistName);
+                if (pl) {
+                  const results = await searchSongs(pa.query);
+                  if (results.length > 0) {
+                    await plStore.removeSongFromPlaylist(pl.id, results[0].id);
+                  }
+                }
+              }
+              break;
+            }
+            case 'play_playlist': {
+              if (pa.playlistName) {
+                const pl = plStore.playlists.find((p) => p.name === pa.playlistName);
+                if (pl) {
+                  plStore.setSelectedPlaylist(pl);
+                  await plStore.loadPlaylistSongs(pl);
+                  const songs = usePlaylistStore.getState().playlistSongs;
+                  if (songs.length > 0) {
+                    usePlayerStore.getState().setPlaylist(songs);
+                    usePlayerStore.getState().setCurrentSong(songs[0]);
+                    usePlayerStore.getState().play();
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // Handle player control from AI
+      if (aiResponse.player && aiResponse.player.length > 0) {
+        console.log('AI player actions:', aiResponse.player);
+        const player = usePlayerStore.getState();
+        for (const pa of aiResponse.player) {
+          switch (pa.action) {
+            case 'play':
+              player.play();
+              break;
+            case 'pause':
+              player.pause();
+              break;
+            case 'next':
+              player.playNext();
+              break;
+            case 'prev':
+              player.playPrev();
+              break;
+            case 'volume_up': {
+              const newVol = Math.min(1, player.volume + 0.1);
+              player.setVolume(newVol);
+              break;
+            }
+            case 'volume_down': {
+              const newVol = Math.max(0, player.volume - 0.1);
+              player.setVolume(newVol);
+              break;
+            }
+            case 'mode': {
+              if (pa.value) {
+                usePlayerStore.setState({ playMode: pa.value as PlayMode });
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (!aiResponse.play?.length && !aiResponse.queue?.length && !aiResponse.playlist?.length && !aiResponse.player?.length) {
         console.log('AI did not return play or queue intent');
       }
     } catch (err) {
@@ -180,6 +287,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ messages: [] });
   },
 }));
+
+const PLAY_MODE_LABELS: Record<PlayMode, string> = {
+  sequence: '顺序播放',
+  shuffle: '随机播放',
+  'repeat-one': '单曲循环',
+  'repeat-all': '列表循环',
+};
 
 function executeCommand(
   cmd: NonNullable<ReturnType<typeof parseCommand>>
@@ -205,13 +319,14 @@ function executeCommand(
       usePlayerStore.getState().toggleMute();
       return '已静音';
     case 'loop':
-      player.toggleRepeat();
-      const modeLabels: Record<string, string> = { none: '已关闭循环', one: '单曲循环', all: '列表循环' };
-      const freshMode = usePlayerStore.getState().repeatMode;
-      return modeLabels[freshMode] || '单曲循环';
-    case 'shuffle':
-      player.toggleShuffle();
-      return player.shuffle ? '已开启随机播放' : '已关闭随机播放';
+      player.cyclePlayMode();
+      return PLAY_MODE_LABELS[usePlayerStore.getState().playMode];
+    case 'shuffle': {
+      const current = usePlayerStore.getState().playMode;
+      const newMode = current === 'shuffle' ? 'sequence' : 'shuffle';
+      usePlayerStore.setState({ playMode: newMode });
+      return newMode === 'shuffle' ? '已开启随机播放' : '已关闭随机播放';
+    }
     case 'volume': {
       const delta = cmd.action === 'up' ? 0.1 : -0.1;
       const newVol = Math.max(0, Math.min(1, player.volume + delta));

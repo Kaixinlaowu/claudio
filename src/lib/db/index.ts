@@ -32,7 +32,7 @@ async function withTauriFallback<T>(
   try {
     return await tauriInvoke(command, args) as T;
   } catch (e) {
-    console.error(`[db] Tauri invoke '${command}' failed, using fallback:`, e);
+    console.warn(`[db] Tauri invoke '${command}' failed, using localStorage fallback:`, e);
     return localFallback();
   }
 }

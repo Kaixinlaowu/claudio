@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 import { addPlayRecord, getPlayHistory, toggleLike as dbToggleLike, getLikedSongs, setPreference, getPreference } from '../db';
-import { getSongUrl } from '../api/netease';
+import { getSongUrl, searchSongs, getSongsDetails } from '../api/netease';
+import { buildContext } from '../ai/context';
+import { chatWithAI } from '../ai/claude';
 import type { Song } from '../ai/types';
+
+export type PlayMode = 'sequence' | 'shuffle' | 'repeat-one' | 'repeat-all';
 
 export interface PlayerState {
   currentSong: Song | null;
@@ -11,8 +15,8 @@ export interface PlayerState {
   currentIndex: number;
   progress: number;
   volume: number;
-  repeatMode: 'none' | 'one' | 'all';
-  shuffle: boolean;
+  playMode: PlayMode;
+  showLyrics: boolean;
   aiRecommend: boolean;
   playHistory: Array<{
     id: number;
@@ -62,8 +66,8 @@ export interface PlayerActions {
   setProgress: (progress: number) => void;
   setSeeking: (seeking: boolean) => void;
   setVolume: (volume: number) => void;
-  toggleRepeat: () => void;
-  toggleShuffle: () => void;
+  cyclePlayMode: () => void;
+  toggleShowLyrics: () => void;
   toggleAiRecommend: () => void;
   requestAiRecommend: () => Promise<void>;
   loadPlayHistory: () => Promise<void>;
@@ -79,6 +83,19 @@ export interface PlayerActions {
   restoreQueueState: () => Promise<boolean>;
 }
 
+let lastRecordedSongId = '';
+let lastRecordedAt = 0;
+
+const resolveSongUrl = async (song: Song): Promise<Song | null> => {
+  let url = song.url;
+  if (!url) url = await getSongUrl(song.id);
+  if (!url) {
+    console.warn('No URL for song:', song.name);
+    return null;
+  }
+  return { ...song, url };
+};
+
 const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   currentSong: null,
   isPlaying: false,
@@ -87,8 +104,8 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   currentIndex: -1,
   progress: 0,
   volume: 0.8,
-  repeatMode: 'none',
-  shuffle: false,
+  playMode: 'sequence',
+  showLyrics: false,
   playHistory: [],
   // TTS state
   isSpeaking: false,
@@ -99,14 +116,9 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   likedSongs: [],
 
   setCurrentSong: async (song) => {
-    let url = song.url;
-    if (!url) {
-      url = await getSongUrl(song.id);
-    }
+    const resolved = await resolveSongUrl(song);
 
-    // If still no URL, try next song
-    if (!url) {
-      console.warn('No URL for song:', song.name, '- trying next');
+    if (!resolved) {
       const { playlist, currentIndex } = get();
       if (playlist.length > 1) {
         const nextIndex = (currentIndex + 1) % playlist.length;
@@ -115,20 +127,14 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       return;
     }
 
-    const songWithUrl = { ...song, url };
-    set({ currentSong: songWithUrl, isPlaying: true, progress: 0 });
-    get().recordPlay(songWithUrl);
+    set({ currentSong: resolved, isPlaying: true, progress: 0 });
+    get().recordPlay(resolved);
   },
 
   setCurrentSongQuiet: async (song) => {
-    let url = song.url;
-    if (!url) {
-      url = await getSongUrl(song.id);
-    }
+    const resolved = await resolveSongUrl(song);
 
-    // If still no URL, try next song
-    if (!url) {
-      console.warn('No URL for song:', song.name, '- trying next');
+    if (!resolved) {
       const { playlist, currentIndex } = get();
       if (playlist.length > 1) {
         const nextIndex = (currentIndex + 1) % playlist.length;
@@ -137,8 +143,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       return;
     }
 
-    const songWithUrl = { ...song, url };
-    set({ currentSong: songWithUrl, isPlaying: false, progress: 0 });
+    set({ currentSong: resolved, isPlaying: false, progress: 0 });
   },
 
   play: () => set({ isPlaying: true }),
@@ -186,20 +191,30 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   },
 
   playNext: async () => {
-    const { playlist, currentIndex, repeatMode, shuffle } = get();
+    const { playlist, currentIndex, playMode } = get();
     if (playlist.length === 0) return;
 
-    // Try to find next playable song (max attempts = playlist length)
+    if (playMode === 'repeat-one') {
+      const song = playlist[currentIndex];
+      if (song) {
+        set({ currentSong: song, isPlaying: true, progress: 0 });
+      }
+      return;
+    }
+
+    const isShuffle = playMode === 'shuffle';
+
     for (let attempt = 0; attempt < playlist.length; attempt++) {
       let nextIndex: number;
-      if (shuffle) {
+      if (isShuffle) {
         nextIndex = Math.floor(Math.random() * playlist.length);
       } else {
         nextIndex = currentIndex + 1 + attempt;
         if (nextIndex >= playlist.length) {
-          if (repeatMode === 'all') {
+          if (playMode === 'repeat-all') {
             nextIndex = nextIndex % playlist.length;
           } else {
+            get().requestAiRecommend();
             return;
           }
         }
@@ -210,7 +225,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
         const url = await getSongUrl(nextSong.id);
         if (!url) {
           console.warn('Skipping unplayable song:', nextSong.name);
-          continue; // Try next song
+          continue;
         }
         nextSong = { ...nextSong, url };
       }
@@ -266,55 +281,63 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     return { isMuted: true, savedVolume: state.volume };
   }),
 
-  toggleRepeat: () => set((state) => {
-    const modes: ('none' | 'one' | 'all')[] = ['none', 'one', 'all'];
-    const currentIdx = modes.indexOf(state.repeatMode);
-    return { repeatMode: modes[(currentIdx + 1) % modes.length] };
+  cyclePlayMode: () => set((state) => {
+    const modes: PlayMode[] = ['sequence', 'shuffle', 'repeat-one', 'repeat-all'];
+    const currentIdx = modes.indexOf(state.playMode);
+    return { playMode: modes[(currentIdx + 1) % modes.length] };
   }),
 
-  toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
+  toggleShowLyrics: () => set((state) => ({ showLyrics: !state.showLyrics })),
 
   aiRecommend: false,
-  toggleAiRecommend: () => set((state) => ({ aiRecommend: !state.aiRecommend })),
+  toggleAiRecommend: () => {
+    set((state) => ({ aiRecommend: !state.aiRecommend }));
+    if (get().aiRecommend) {
+      get().requestAiRecommend();
+    }
+  },
 
   requestAiRecommend: async () => {
     const { aiRecommend, playlist, currentIndex } = get();
     if (!aiRecommend) return;
-    // Only trigger when near end (last 2 songs remaining)
-    const remaining = playlist.length - currentIndex - 1;
-    if (remaining > 2) return;
+    // Only trigger when playlist is exhausted
+    if (currentIndex < playlist.length - 1) return;
 
     try {
-      const { chatWithAI } = await import('../ai/claude');
-      const songNames = playlist.map((s) => `${s.name} - ${s.artist}`).join('\n');
-      const prompt = `Based on this playlist:\n${songNames}\n\nRecommend 3 different search keywords for similar music. Return as JSON array: ["keyword1", "keyword2", "keyword3"]`;
-      const response = await chatWithAI([{ role: 'user', content: prompt }]);
-      const text = response.say || '';
-      const match = text.match(/\[.*\]/s);
-      if (!match) return;
-      const keywords: string[] = JSON.parse(match[0]);
-      if (!keywords.length) return;
+      // Build context-aware prompt with user taste, routines, and environment
+      const { messages, system } = await buildContext(
+        '当前歌单已播放完毕，请根据我的音乐品味、当前时间和作息习惯，推荐10首适合现在听的歌曲。直接返回JSON格式的play意图。',
+        playlist.slice(-10),
+        playlist,
+        [],
+      );
 
-      const { searchSongs, getSongsDetails } = await import('../api/netease');
-      const newSongs: Song[] = [];
-      for (const kw of keywords.slice(0, 3)) {
-        const results = await searchSongs(kw);
-        newSongs.push(...results.slice(0, 3));
-      }
+      const response = await chatWithAI(messages, system);
 
-      if (newSongs.length > 0) {
-        // Deduplicate and append to playlist
-        const existingIds = new Set(playlist.map((s) => s.id));
-        const uniqueNew = newSongs.filter((s) => !existingIds.has(s.id));
-        if (uniqueNew.length > 0) {
-          // Fetch details for covers
-          const details = await getSongsDetails(uniqueNew.map((s) => s.id));
-          const enriched = uniqueNew.map((s) => {
+      // Execute play intents from AI response
+      if (response.play && response.play.length > 0) {
+        const newSongs: Song[] = [];
+        for (const intent of response.play) {
+          const results = await searchSongs(intent.query);
+          newSongs.push(...results.slice(0, intent.count || 5));
+        }
+
+        if (newSongs.length > 0) {
+          const details = await getSongsDetails(newSongs.map((s) => s.id));
+          const enriched = newSongs.map((s) => {
             const d = details.get(s.id);
             return d ? { ...s, coverUrl: d.coverUrl, duration: d.duration } : s;
           });
-          set((state) => ({ playlist: [...state.playlist, ...enriched] }));
-          console.log(`AI recommended ${enriched.length} songs`);
+          // Deduplicate inside set updater to prevent race condition
+          set((state) => {
+            const existingIds = new Set(state.playlist.map((s) => s.id));
+            const trulyUnique = enriched.filter((s) => !existingIds.has(s.id));
+            if (trulyUnique.length > 0) {
+              console.log(`AI recommended ${trulyUnique.length} songs`);
+              return { playlist: [...state.playlist, ...trulyUnique] };
+            }
+            return {};
+          });
         }
       }
     } catch (err) {
@@ -326,8 +349,8 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     try {
       const history = await getPlayHistory(100);
       set({
-        playHistory: history.map((r: any) => ({
-          id: r.id,
+        playHistory: history.map((r) => ({
+          id: r.id ?? 0,
           songId: r.song_id,
           songName: r.song_name,
           artist: r.artist,
@@ -335,7 +358,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
           coverUrl: r.cover_url || '',
           url: r.url || '',
           liked: r.liked,
-          playedAt: r.played_at,
+          playedAt: r.played_at || '',
         })),
       });
     } catch (err) {
@@ -346,7 +369,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   loadHistoryAsPlaylist: async () => {
     try {
       const history = await getPlayHistory(100);
-      const historySongs: Song[] = history.map((r: any) => ({
+      const historySongs: Song[] = history.map((r) => ({
         id: r.song_id,
         name: r.song_name,
         artist: r.artist,
@@ -366,8 +389,14 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   },
 
   recordPlay: async (song: Song) => {
+    // Dedup: skip if same song recorded within 2 seconds
+    const now = Date.now();
+    if (lastRecordedSongId === song.id && now - lastRecordedAt < 2000) return;
+    lastRecordedSongId = song.id;
+    lastRecordedAt = now;
+
     try {
-      await addPlayRecord({
+      const record = await addPlayRecord({
         song_id: song.id,
         song_name: song.name,
         artist: song.artist,
@@ -376,7 +405,20 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
         url: song.url,
         liked: false,
       });
-      get().loadPlayHistory();
+      // Optimistically prepend to local history instead of full reload
+      set((state) => ({
+        playHistory: [{
+          id: record.id ?? 0,
+          songId: record.song_id,
+          songName: record.song_name,
+          artist: record.artist,
+          album: record.album || '',
+          coverUrl: record.cover_url || '',
+          url: record.url || '',
+          liked: record.liked,
+          playedAt: record.played_at || new Date().toISOString(),
+        }, ...state.playHistory].slice(0, 100),
+      }));
     } catch (err) {
       console.error('Failed to record play:', err);
     }
@@ -403,8 +445,8 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     try {
       const songs = await getLikedSongs(100);
       set({
-        likedSongs: songs.map((r: any) => ({
-          id: r.id,
+        likedSongs: songs.map((r) => ({
+          id: r.id ?? 0,
           songId: r.song_id,
           songName: r.song_name,
           artist: r.artist,
@@ -412,7 +454,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
           coverUrl: r.cover_url || '',
           url: r.url || '',
           liked: r.liked,
-          playedAt: r.played_at,
+          playedAt: r.played_at || '',
         })),
       });
     } catch (err) {
@@ -421,7 +463,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   },
 
   saveQueueState: async () => {
-    const { playlist, currentIndex, repeatMode, shuffle, volume } = get();
+    const { playlist, currentIndex, playMode, volume } = get();
     if (playlist.length === 0) {
       try { await setPreference('queue_state', ''); } catch {}
       return;
@@ -435,8 +477,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       urls: playlist.map((s) => s.url || ''),
       durations: playlist.map((s) => s.duration),
       currentIndex,
-      repeatMode,
-      shuffle,
+      playMode,
       volume,
     };
     try {
@@ -469,8 +510,7 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       set({
         playlist: songs,
         currentIndex: idx,
-        repeatMode: state.repeatMode || 'none',
-        shuffle: state.shuffle || false,
+        playMode: state.playMode || 'sequence',
         volume: state.volume ?? 0.8,
       });
 
@@ -491,8 +531,7 @@ usePlayerStore.subscribe((state) => {
   const key = [
     state.playlist.length,
     state.currentIndex,
-    state.repeatMode,
-    state.shuffle,
+    state.playMode,
     state.volume,
   ].join('|');
   if (key === lastSaveKey) return;
