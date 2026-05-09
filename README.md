@@ -1,152 +1,117 @@
-# Claudio - Personal AI Radio
+# Claudio — 个人 AI 电台
 
-> Learn listening habits, plan sound schedules, and announce music like a DJ.
-
-**个人 AI 电台・Claudio・读懂听歌习惯 → 规划声音 → 像 DJ 那样播报**
+> 学习听歌习惯，规划声音排程，像 DJ 一样播报音乐。
 
 ---
 
-## Features
+## 功能特性
 
-- **AI DJ**: Learns your taste and announces songs like a personal radio host
-- **Queue Operations**: Natural language queue control — add, insert, remove, jump, clear via AI
-- **Playlist Import**: Import playlists from Netease Music by user ID, with progress tracking
-- **Local Playlists**: Create, manage, save/restore playlists with playlist-to-playlist song transfer
-- **Smart Scheduling**: Rhythm-based music delivery (morning, work, evening modes)
-- **Voice Pipeline**: TTS announces now-playing info
-- **Local Brain**: Claude Code subprocess handles natural language understanding
-- **Netease Music**: Full integration with search, playback, lyrics, playlists via Tauri IPC
-- **Queue Persistence**: Play queue auto-saves and restores across app restarts
-- **Lyrics Display**: Synced LRC lyrics with auto-scroll
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Desktop | Tauri 2.x |
-| Frontend | React 19 + TypeScript + Vite |
-| State | Zustand |
-| Music API | Netease Music (via Tauri IPC commands) |
-| AI | Claude Code subprocess |
-| TTS | XiaoMi TTS (mimo-v2.5-tts) |
-| Database | SQLite |
+- **AI DJ**：学习你的音乐品味，像私人电台主持人一样推荐和播报歌曲
+- **自然语言控制**：通过 AI 对话控制播放队列 — 添加、插入、删除、跳转、清空
+- **网易云音乐**：搜索、播放、歌词、歌单全功能集成（通过 Tauri IPC）
+- **歌单管理**：创建本地歌单，从网易云导入歌单，支持进度显示
+- **定时播报**：基于时段的音乐推送（早间、工作、傍晚、夜间模式）
+- **语音播报**：TTS 合成正在播放信息
+- **歌词显示**：LRC 歌词同步滚动
+- **队列持久化**：播放队列自动保存，重启后恢复
+- **播放历史**：SQLite 存储播放记录和喜欢的歌曲
 
 ---
 
-## Quick Start
+## 技术栈
 
-### Prerequisites
+| 层 | 技术 |
+|----|------|
+| 桌面框架 | Tauri 2.x |
+| 前端 | React 19 + TypeScript + Vite |
+| 状态管理 | Zustand |
+| 后端 | Rust (rusqlite, reqwest, tokio) |
+| 数据库 | SQLite |
+| 音乐 API | 网易云音乐（直连 API） |
+| TTS | 小米 TTS (mimo-v2.5-tts) |
+| AI | Claude API / MiniMax 兼容接口 |
+
+---
+
+## 快速开始
+
+### 环境要求
 
 - Node.js 18+
-- Rust 1.70+
-- npm or pnpm
+- Rust 1.77+
+- npm
 
-### Configuration
+### 配置
 
-Create `claudio/.env` with your API keys:
+在 `claudio/.env` 中配置 API 密钥：
 
 ```env
-VITE_CHAT_API_KEY=your_key
+VITE_CHAT_API_KEY=你的AI_API密钥
 VITE_BASE_URL=https://api.minimaxi.com/anthropic
-VITE_TTS_MODEL=mimo-v2.5-tts
 VITE_CHAT_MODEL=MiniMax-M2.5
-MUSIC_U=your_netease_cookie
-VITE_NET_COOKIE=your_netease_cookie
-VITE_CSRF=your_csrf
-VITE_MUSIC_A=your_music_a
-VITE_TTS_KEY=your_tts_key
+VITE_TTS_KEY=你的TTS密钥
+VITE_TTS_MODEL=mimo-v2.5-tts
 VITE_TTS_URL=https://api.xiaomimimo.com/v1/chat/completions
+VITE_NET_COOKIE=你的网易云cookie
 ```
 
-### Development
+### 开发
 
 ```bash
-cd claudio
 npm install
 npm run tauri dev
 ```
 
-### Build
+### 构建
 
 ```bash
-cd claudio
+# Windows 安装包
 npm run tauri build
+
+# Android APK (arm64)
+npm run tauri:android:build
 ```
 
-Installer will be at: `claudio/src-tauri/target/release/bundle/nsis/Claudio_0.1.0_x64-setup.exe`
+构建产物输出到 `release/` 目录。
 
 ---
 
-## Architecture
+## 项目结构
 
-### External Context
-| Module | Content | Key Files |
-|--------|---------|-----------|
-| `USER/` | Taste corpus | `user/taste.md`, `user/routines.md`, `user/playlists.json` |
-| `BRAIN` | Claude Code | `claude -p --output json` |
-| `MUSIC` | Netease API | Rust IPC commands in Tauri backend |
-| `VOICE` | TTS services | FishAudio, MiniMax |
-
-### Local Brain
-| Module | Purpose |
-|--------|---------|
-| `ROUTER.JS` | Intent routing |
-| `CONTEXT.JS` | Prompt assembly |
-| `CLAUDE.JS` | Claude subprocess adapter |
-| `SCHEDULER.JS` | Rhythm scheduling |
-| `TTS.JS` | Voice pipeline |
-| `STATE.DB` | SQLite persistence |
-
-### Key Files
 ```
-claudio/
-├── src-tauri/
-│   ├── src/
-│   │   └── lib.rs           # Tauri main entry, DB, Netease API, TTS commands
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── src/
-│   ├── lib/
-│   │   ├── api/netease.ts   # Frontend Netease API client
-│   │   ├── ai/              # Router, context, claude adapter
-│   │   └── state/           # Zustand stores
-│   └── components/
-│       ├── Player/          # AudioPlayer, PlayerCard, LyricDisplay, VolumeControl
-│       ├── Playlist/        # HistoryPanel, LikedPanel, PlaylistPanel
-│       ├── Search/          # SearchBar
-│       └── ErrorBoundary.tsx
-└── user/                    # User personalization files
+src/
+├── lib/
+│   ├── api/netease.ts      # 网易云 API 客户端
+│   ├── ai/                 # AI 路由、上下文、对话适配
+│   ├── state/              # Zustand 状态管理
+│   ├── audio/              # 音频服务抽象（桌面/安卓）
+│   ├── db/                 # 数据库接口（Tauri IPC）
+│   └── scheduler.ts        # 定时任务
+├── components/
+│   ├── Player/             # 播放器组件
+│   ├── Playlist/           # 歌单、历史、收藏
+│   ├── Chat/               # AI 对话
+│   └── mobile/             # 移动端适配
+└── styles/                 # 全局样式、CSS 变量
+
+src-tauri/src/
+├── lib.rs                  # 入口、数据库命令
+├── config.rs               # 配置加载与缓存
+└── netease.rs              # 网易云 API、TTS
 ```
 
 ---
 
-## Project Status
+## 数据存储
 
-**Active Development** — Core features working, code quality and performance optimized.
-
-### What's Working
-- Music search via Netease Music
-- Playback of free and VIP songs
-- History and liked songs storage (SQLite with indexed queries)
-- AI DJ chat interface
-- TTS voice announcements (XiaoMi TTS API)
-- AI queue operations (add, insert, remove, clear, jump via natural language)
-- Mute/unmute with volume save/restore
-- LRC lyrics display with auto-scroll
-- Loading animations and error boundary
-- Loop/shuffle/volume quick commands
-- Browser fallback (TitleBar graceful degradation)
-
-### Recent Improvements
-- **Security**: Removed hardcoded credentials, API keys passed via frontend env
-- **Performance**: Shared HTTP client (connection pooling), prompt caching, optimistic history updates, SQLite indexes
-- **Code Quality**: TypeScript strict mode, eliminated `any` types, extracted reusable helpers
-- **Build**: Tokio features minimized for faster Rust compilation, Vite es2023 target
+- **songs**：统一歌曲元数据（song_id 主键）
+- **plays**：播放历史记录
+- **playlists**：歌单列表
+- **playlist_songs**：歌单与歌曲的关联关系
+- **preferences**：用户偏好设置（键值对）
 
 ---
 
-## License
+## 许可证
 
-Private project — All rights reserved
+私有项目，版权所有。

@@ -20,6 +20,22 @@ export interface Playlist {
   created_at?: string;
 }
 
+export interface SongMeta {
+  song_id: string;
+  name: string;
+  artist: string;
+  album: string;
+  cover_url?: string;
+  duration?: number;
+}
+
+export interface PlaylistInfo {
+  id: number;
+  name: string;
+  song_count: number;
+  created_at?: string;
+}
+
 const HISTORY_KEY = 'claudio_play_history';
 const MAX_HISTORY = 100;
 
@@ -93,8 +109,25 @@ export async function savePlaylist(playlist: Playlist): Promise<Playlist> {
   return withTauriFallback('save_playlist', { playlist }, () => playlist);
 }
 
-export async function getPlaylists(): Promise<Playlist[]> {
+export async function getPlaylists(): Promise<PlaylistInfo[]> {
   return withTauriFallback('get_playlists', {}, () => []);
+}
+
+export async function upsertSong(song: SongMeta): Promise<void> {
+  return withTauriFallback('upsert_song', { song }, () => {});
+}
+
+export async function getSongsByIdsLocal(ids: string[]): Promise<SongMeta[]> {
+  if (ids.length === 0) return [];
+  return withTauriFallback('get_songs_by_ids', { ids }, () => []);
+}
+
+export async function savePlaylistSongs(playlistId: number, songIds: string[]): Promise<void> {
+  return withTauriFallback('save_playlist_songs', { playlistId, songIds }, () => {});
+}
+
+export async function getPlaylistSongIds(playlistId: number): Promise<string[]> {
+  return withTauriFallback('get_playlist_song_ids', { playlistId }, () => []);
 }
 
 export async function deletePlaylist(id: number): Promise<void> {

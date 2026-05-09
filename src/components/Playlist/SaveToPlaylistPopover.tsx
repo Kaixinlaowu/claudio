@@ -23,13 +23,17 @@ export function SaveToPlaylistPopover({ songId, songName, onClose }: SaveToPlayl
   }, [loadPlaylists]);
 
   useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
+    const handleClickOutside = (e: Event) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [onClose]);
 
   const handleSave = async (playlistId: number) => {

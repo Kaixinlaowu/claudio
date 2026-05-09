@@ -1,0 +1,258 @@
+.search {
+  padding: 16px 0;
+}
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 16px;
+  background: var(--bg-highlight);
+  border-radius: var(--radius-full);
+  padding: 0 14px;
+  height: 44px;
+  border: 2px solid transparent;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.inputWrap:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.15);
+}
+
+.inputIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.clearBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.clearBtn:active {
+  transform: scale(0.9);
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 16px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+}
+
+.recommendations {
+  margin-top: 16px;
+}
+
+.recHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.recLoading {
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.recScroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+}
+
+.recCard {
+  flex-shrink: 0;
+  width: 120px;
+  scroll-snap-align: start;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.recCard:hover {
+  background: var(--bg-tertiary);
+}
+
+.recCover {
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.recPlaceholder {
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  max-width: 110px;
+}
+
+.recName {
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+
+.recArtist {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+
+/* Browse section */
+.browseSection {
+  padding: 0 16px;
+}
+
+.historySection {
+  margin-bottom: 24px;
+}
+
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.sectionLabel {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.clearHistoryBtn {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.historyTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.historyTag {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--bg-highlight);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.historyTag:active {
+  background: var(--bg-hover);
+}
+
+.categorySection {
+  margin-bottom: 24px;
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.categoryCard {
+  aspect-ratio: 1.4;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: flex-end;
+  padding: 10px;
+  cursor: pointer;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.categoryCard:active {
+  transform: scale(0.96);
+  transition: transform 80ms ease;
+}
+
+.categoryName {
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}

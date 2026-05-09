@@ -2,6 +2,7 @@ import usePlayerStore from './state/playerStore';
 import { searchSongs, getSongsDetails } from './api/netease';
 import { speak } from './tts';
 import { chatWithAI } from './ai/claude';
+import { getTimeOfDay } from './time';
 
 type ScheduleAction = 'tts_only' | 'play_music' | 'mood_check';
 
@@ -101,7 +102,7 @@ class Scheduler {
   }
 
   private async moodCheck(hour: number): Promise<void> {
-    const timeContext = this.getTimeContext(hour);
+    const timeContext = getTimeOfDay(hour);
     try {
       const aiResponse = await chatWithAI(
         [{ role: 'user', content: `现在是${timeContext}，请用一句话描述适合这个时段听的音乐风格，不超过20个字` }],
@@ -113,16 +114,6 @@ class Scheduler {
     } catch (err) {
       console.error('Mood check failed:', err);
     }
-  }
-
-  private getTimeContext(hour: number): string {
-    if (hour >= 7 && hour < 9) return '早晨，刚起床';
-    if (hour >= 9 && hour < 12) return '上午工作时段';
-    if (hour >= 12 && hour < 14) return '午休时间';
-    if (hour >= 14 && hour < 17) return '下午工作时段';
-    if (hour >= 17 && hour < 20) return '傍晚放松时段';
-    if (hour >= 20 && hour < 23) return '晚间休息时段';
-    return '深夜';
   }
 }
 

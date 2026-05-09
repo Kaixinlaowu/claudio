@@ -1,0 +1,357 @@
+.library {
+  padding: 16px 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 20px;
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.addBtn:active {
+  transform: scale(0.92);
+  transition: transform 80ms ease;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.detailTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 16px 24px;
+}
+
+.shortcutCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  cursor: pointer;
+  text-align: left;
+  min-height: 68px;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 80ms ease;
+}
+
+.shortcutCard:active {
+  transform: scale(0.96);
+}
+
+.shortcutIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.likedBg {
+  background: linear-gradient(135deg, #e84393, #fd79a8);
+  box-shadow: 0 4px 12px rgba(232, 67, 147, 0.25);
+}
+
+.recentBg {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.25);
+}
+
+.shortcutInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shortcutName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcutCount {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.section {
+  padding: 0 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.emptySmall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.emptyActionBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--bg-highlight);
+  color: var(--text-secondary);
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+}
+
+.emptyActionBtn:active {
+  background: var(--bg-hover);
+  transform: scale(0.96);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 16px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.playlistRowWrap {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.playlistRowWrap:last-child {
+  border-bottom: none;
+}
+
+.playlistRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: transform 200ms var(--ease-out-expo);
+  background: var(--bg-base);
+}
+
+.playlistRow:active {
+  opacity: 0.7;
+}
+
+.swipeDelete {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.playlistCover {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-highlight);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.playlistInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playlistName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlistCount {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.playAllBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 16px 12px;
+  padding: 10px 20px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.playAllBtn:active {
+  transform: scale(0.97);
+}
+
+.playAllBtn:disabled {
+  opacity: 0.5;
+}
+
+.iconBtnDanger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.iconBtnDanger:active {
+  color: #e74c3c;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.importList {
+  padding: 0 16px;
+}
+
+.importBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  border: none;
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.importBtn:active {
+  transform: scale(0.9);
+}
+
+.importInput {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+
+.uidInput {
+  width: 100%;
+  max-width: 300px;
+  height: 44px;
+  background: var(--bg-highlight);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0 16px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  text-align: center;
+}
+
+.uidInput::placeholder {
+  color: var(--text-tertiary);
+}
+
+.errorText {
+  color: #e74c3c;
+  font-size: 13px;
+  text-align: center;
+}

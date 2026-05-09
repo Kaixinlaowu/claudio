@@ -1,80 +1,91 @@
 import { useEffect, useRef } from 'react';
 import usePlayerStore from '../../lib/state/playerStore';
+import { getAudioService } from '../../lib/audio';
 
 export function AudioPlayer() {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const { currentSong, isPlaying, volume, progress, setProgress } = usePlayerStore();
+  const { currentSong, isPlaying, volume, progress, isMuted, setProgress } = usePlayerStore();
   const lastProgressRef = useRef<number>(0);
+  const serviceRef = useRef(getAudioService());
+  const loadedUrlRef = useRef<string>('');
 
-  // Load new song when currentSong changes
+  // Load and play new song — only when URL actually changes
   useEffect(() => {
-    if (audioRef.current && currentSong?.url) {
-      audioRef.current.src = currentSong.url;
-      audioRef.current.load();
-      audioRef.current.currentTime = 0;
-      lastProgressRef.current = 0;
-      if (isPlaying) {
-        audioRef.current.play().catch(console.error);
+    if (!currentSong?.url) {
+      // Song cleared (e.g. playlist emptied) — stop audio
+      if (loadedUrlRef.current) {
+        loadedUrlRef.current = '';
+        serviceRef.current.stop();
       }
+      return;
     }
+    if (currentSong.url === loadedUrlRef.current) return;
+    loadedUrlRef.current = currentSong.url;
+    const service = serviceRef.current;
+    service.play(currentSong.url, {
+      title: currentSong.name,
+      artist: currentSong.artist,
+      album: currentSong.album || '',
+      coverUrl: currentSong.coverUrl || '',
+    });
+    lastProgressRef.current = 0;
+    service.resume();
   }, [currentSong]);
 
   // Handle play/pause
   useEffect(() => {
-    if (!audioRef.current || !currentSong?.url) return;
+    if (!currentSong?.url) return;
+    const service = serviceRef.current;
     if (isPlaying) {
-      audioRef.current.play().catch(console.error);
+      service.resume();
     } else {
-      audioRef.current.pause();
+      service.pause();
     }
   }, [isPlaying]);
 
-  // Handle volume with mute
+  // Handle volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
+    serviceRef.current.setVolume(isMuted ? 0 : volume);
+  }, [volume, isMuted]);
 
-  // Handle mute state
-  const { isMuted } = usePlayerStore();
+  // Handle seek (from store → audio)
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
-    }
-  }, [isMuted]);
-
-  // Sync progress from store → audio element (user drag seek)
-  useEffect(() => {
-    if (!audioRef.current || !currentSong?.url) return;
-    // If progress changed significantly (not from playback), seek audio
     if (Math.abs(progress - lastProgressRef.current) > 0.5) {
-      audioRef.current.currentTime = progress;
+      serviceRef.current.seek(progress);
       lastProgressRef.current = progress;
     }
-  }, [progress, currentSong]);
+  }, [progress]);
 
-  // Sync audio → store (normal playback progress)
+  // Subscribe to audio events
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => {
-      lastProgressRef.current = audio.currentTime;
-      setProgress(audio.currentTime);
-    };
-
-    const handleEnded = () => {
+    const service = serviceRef.current;
+    const unsubTime = service.onTimeUpdate((position) => {
+      lastProgressRef.current = position;
+      setProgress(position);
+    });
+    const unsubEnded = service.onEnded(() => {
+      loadedUrlRef.current = '';
       usePlayerStore.getState().playNext();
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
+    });
+    const unsubPrepared = service.onPrepared((duration) => {
+      if (duration > 0) {
+        const durationMs = Math.round(duration * 1000);
+        usePlayerStore.setState((state) => ({
+          currentSong: state.currentSong ? { ...state.currentSong, duration: durationMs } : null,
+        }));
+      }
+    });
+    const unsubError = service.onError((_error) => {
+      console.error('[AudioPlayer] audio error, skipping to next');
+      loadedUrlRef.current = '';
+      usePlayerStore.getState().playNext();
+    });
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
+      unsubTime();
+      unsubEnded();
+      unsubPrepared();
+      unsubError();
     };
   }, [setProgress]);
 
-  return <audio ref={audioRef} />;
+  return null;
 }

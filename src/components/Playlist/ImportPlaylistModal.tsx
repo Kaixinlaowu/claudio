@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { X, Search, Import, CheckCircle, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import styles from './ImportPlaylistModal.module.css';
 import { usePlaylistStore } from '../../lib/state/playlistStore';
-import { getUserPlaylists, getPlaylistDetail, getSongsByIds } from '../../lib/api/netease';
+import { getUserPlaylists, getPlaylistDetail } from '../../lib/api/netease';
 import type { NeteaseUserPlaylist } from '../../lib/api/netease';
-import type { Song } from '../../lib/ai/types';
 
 type Step = 'uid' | 'browse' | 'importing' | 'done';
 
@@ -13,7 +12,7 @@ interface ImportPlaylistModalProps {
 }
 
 export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
-  const { createPlaylist, addSongToPlaylist, loadPlaylists } = usePlaylistStore();
+  const { createPlaylist, loadPlaylists } = usePlaylistStore();
 
   const [step, setStep] = useState<Step>('uid');
   const [uid, setUid] = useState('');
@@ -57,26 +56,13 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
       const tracks = await getPlaylistDetail(String(playlist.id));
       const validTracks = tracks.filter((t) => t.id && t.name);
 
-      // Create local playlist
       const localPl = await createPlaylist(playlist.name);
 
-      // Batch import with progress — process in chunks of 20
-      const chunkSize = 20;
-      for (let i = 0; i < validTracks.length; i += chunkSize) {
-        const chunk = validTracks.slice(i, i + chunkSize);
-        // Fetch song details for covers
-        const ids = chunk.map((s) => s.id);
-        let enriched: Song[];
-        try {
-          enriched = await getSongsByIds(ids);
-        } catch {
-          enriched = chunk; // fallback to tracks without covers
-        }
-        for (const song of enriched) {
-          await addSongToPlaylist(localPl.id, song.id);
-        }
-        setImportProgress({ current: Math.min(i + chunkSize, validTracks.length), total: validTracks.length });
-      }
+      const songIds = validTracks.map((s) => s.id);
+      const { addSongsToPlaylist } = usePlaylistStore.getState();
+      await addSongsToPlaylist(localPl.id, songIds);
+
+      setImportProgress({ current: validTracks.length, total: validTracks.length });
 
       await loadPlaylists();
       setImportResult({ name: playlist.name, count: validTracks.length });

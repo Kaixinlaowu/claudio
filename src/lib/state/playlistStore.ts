@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Song } from '../ai/types';
-import { savePlaylist, getPlaylists, deletePlaylist } from '../db';
-import type { Playlist as DbPlaylist } from '../db';
+import { savePlaylist, getPlaylists, deletePlaylist, savePlaylistSongs, getPlaylistSongIds } from '../db';
+import type { PlaylistInfo as DbPlaylistInfo } from '../db';
 import { getSongsByIds, getSongsDetails } from '../api/netease';
 
 export interface PlaylistInfo {
@@ -23,29 +23,20 @@ interface PlaylistStore {
   createPlaylist: (name: string) => Promise<PlaylistInfo>;
   removePlaylist: (id: number) => Promise<void>;
   addSongToPlaylist: (playlistId: number, songId: string) => Promise<void>;
+  addSongsToPlaylist: (playlistId: number, songIds: string[]) => Promise<void>;
   removeSongFromPlaylist: (playlistId: number, songId: string) => Promise<void>;
   loadPlaylistSongs: (playlist: PlaylistInfo) => Promise<void>;
   setSelectedPlaylist: (p: PlaylistInfo | null) => void;
   isSongInPlaylist: (playlistId: number, songId: string) => boolean;
 }
 
-function dbToInfo(db: DbPlaylist): PlaylistInfo {
-  const songIds = db.song_ids ? db.song_ids.split(',').filter(Boolean) : [];
+function dbToInfo(db: DbPlaylistInfo): PlaylistInfo {
   return {
-    id: db.id!,
+    id: db.id,
     name: db.name,
-    songIds,
-    songCount: songIds.length,
+    songIds: [], // Will be loaded separately when needed
+    songCount: db.song_count,
     createdAt: db.created_at,
-  };
-}
-
-function infoToDb(p: PlaylistInfo): DbPlaylist {
-  return {
-    id: p.id,
-    name: p.name,
-    song_ids: p.songIds.join(','),
-    created_at: p.createdAt,
   };
 }
 
@@ -61,22 +52,28 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
       const dbs = await getPlaylists();
       const playlists = dbs.map(dbToInfo);
 
-      // Fetch cover URLs for playlists that have songs
-      const firstSongIds = playlists
-        .map((pl) => pl.songIds[0])
-        .filter(Boolean);
-      if (firstSongIds.length > 0) {
+      // Load song IDs from junction table for each playlist
+      const playlistsWithSongs = playlists.filter((pl) => pl.songCount > 0);
+      if (playlistsWithSongs.length > 0) {
         try {
-          const details = await getSongsDetails(firstSongIds);
-          for (const pl of playlists) {
-            const firstId = pl.songIds[0];
-            if (firstId) {
-              const d = details.get(firstId);
-              if (d?.coverUrl) pl.coverUrl = d.coverUrl;
+          const results = await Promise.all(
+            playlistsWithSongs.map((pl) =>
+              getPlaylistSongIds(pl.id).then((ids) => ({ pl, ids }))
+            )
+          );
+          for (const { pl, ids } of results) {
+            pl.songIds = ids;
+            // Fetch cover for first song
+            if (ids[0]) {
+              try {
+                const details = await getSongsDetails([ids[0]]);
+                const d = details.get(ids[0]);
+                if (d?.coverUrl) pl.coverUrl = d.coverUrl;
+              } catch {}
             }
           }
         } catch {
-          // Cover fetch failed, continue without covers
+          // Junction table load failed, continue with empty songIds
         }
       }
 
@@ -103,47 +100,69 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   addSongToPlaylist: async (playlistId: number, songId: string) => {
-    // Read fresh state inside async to avoid stale closure
     const pl = get().playlists.find((p) => p.id === playlistId);
-    if (!pl || pl.songIds.includes(songId)) return;
+    if (!pl) return;
 
-    const isFirstSong = pl.songIds.length === 0;
-    const updated: PlaylistInfo = {
-      ...pl,
-      songIds: [...pl.songIds, songId],
-      songCount: pl.songCount + 1,
-    };
+    // Get current song IDs from junction table
+    const currentIds = await getPlaylistSongIds(playlistId);
+    if (currentIds.includes(songId)) return;
+
+    const isFirstSong = currentIds.length === 0;
+    const newIds = [...currentIds, songId];
+    await savePlaylistSongs(playlistId, newIds);
 
     // Fetch cover URL for the first song
-    if (isFirstSong && !updated.coverUrl) {
+    if (isFirstSong && !pl.coverUrl) {
       try {
         const details = await getSongsDetails([songId]);
         const d = details.get(songId);
-        if (d?.coverUrl) updated.coverUrl = d.coverUrl;
-      } catch {
-        // Ignore cover fetch failure
-      }
+        if (d?.coverUrl) {
+          set((s) => ({
+            playlists: s.playlists.map((p) => (p.id === playlistId ? { ...p, coverUrl: d.coverUrl } : p)),
+          }));
+        }
+      } catch {}
     }
 
-    await savePlaylist(infoToDb(updated));
     set((s) => ({
-      playlists: s.playlists.map((p) => (p.id === playlistId ? updated : p)),
+      playlists: s.playlists.map((p) =>
+        p.id === playlistId ? { ...p, songIds: newIds, songCount: newIds.length } : p
+      ),
+    }));
+  },
+
+  addSongsToPlaylist: async (playlistId: number, songIds: string[]) => {
+    const pl = get().playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+
+    // Get current song IDs from junction table
+    const currentIds = await getPlaylistSongIds(playlistId);
+    const currentSet = new Set(currentIds);
+    const newIds = songIds.filter((id) => !currentSet.has(id));
+    if (newIds.length === 0) return;
+
+    const allIds = [...currentIds, ...newIds];
+    await savePlaylistSongs(playlistId, allIds);
+
+    set((s) => ({
+      playlists: s.playlists.map((p) =>
+        p.id === playlistId ? { ...p, songIds: allIds, songCount: allIds.length } : p
+      ),
     }));
   },
 
   removeSongFromPlaylist: async (playlistId: number, songId: string) => {
     const { playlists, selectedPlaylist, playlistSongs } = get();
-    const pl = playlists.find((p) => p.id === playlistId);
-    if (!pl) return;
 
-    const updated: PlaylistInfo = {
-      ...pl,
-      songIds: pl.songIds.filter((id) => id !== songId),
-      songCount: pl.songCount - 1,
-    };
-    await savePlaylist(infoToDb(updated));
+    // Get current song IDs from junction table
+    const currentIds = await getPlaylistSongIds(playlistId);
+    const newIds = currentIds.filter((id) => id !== songId);
+    await savePlaylistSongs(playlistId, newIds);
+
     set({
-      playlists: playlists.map((p) => (p.id === playlistId ? updated : p)),
+      playlists: playlists.map((p) =>
+        p.id === playlistId ? { ...p, songIds: newIds, songCount: newIds.length } : p
+      ),
       playlistSongs: selectedPlaylist?.id === playlistId
         ? playlistSongs.filter((s) => s.id !== songId)
         : playlistSongs,
@@ -151,23 +170,24 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   loadPlaylistSongs: async (playlist: PlaylistInfo) => {
-    // Re-read playlist from store to get latest songIds
-    const freshPlaylist = get().playlists.find((p) => p.id === playlist.id) || playlist;
-    if (freshPlaylist.songIds.length === 0) {
-      set({ playlistSongs: [] });
-      return;
-    }
     set({ loading: true });
     try {
+      // Load song IDs from junction table
+      const songIds = await getPlaylistSongIds(playlist.id);
+      if (songIds.length === 0) {
+        set({ playlistSongs: [], loading: false });
+        return;
+      }
+      // Fetch full song details from Netease API
       const BATCH_SIZE = 100;
       const allSongs: Song[] = [];
-      for (let i = 0; i < freshPlaylist.songIds.length; i += BATCH_SIZE) {
-        const batch = freshPlaylist.songIds.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < songIds.length; i += BATCH_SIZE) {
+        const batch = songIds.slice(i, i + BATCH_SIZE);
         const batchSongs = await getSongsByIds(batch);
         allSongs.push(...batchSongs);
       }
-      // Preserve order from songIds
-      const ordered = freshPlaylist.songIds
+      // Preserve order from junction table
+      const ordered = songIds
         .map((id) => allSongs.find((s) => s.id === id))
         .filter(Boolean) as Song[];
       set({ playlistSongs: ordered, loading: false });

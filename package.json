@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build && node scripts/copy-release.mjs windows",
+    "tauri:android:dev": "tauri android dev",
+    "tauri:android:build": "tauri android build --target aarch64 && node scripts/copy-release.mjs android"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

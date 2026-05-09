@@ -1,4 +1,5 @@
 import type { Song, ChatMessage } from './types';
+import { getTimeOfDay } from '../time';
 
 interface ContextFragments {
   systemPrompt: string;
@@ -57,17 +58,7 @@ function getEnvironment(): string {
   const hour = now.getHours();
   const minute = now.getMinutes();
   const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-
-  let timeOfDay = '';
-  if (hour >= 7 && hour < 9) timeOfDay = '早晨';
-  else if (hour >= 9 && hour < 12) timeOfDay = '上午工作时段';
-  else if (hour >= 12 && hour < 14) timeOfDay = '午餐时间';
-  else if (hour >= 14 && hour < 17) timeOfDay = '下午工作时段';
-  else if (hour >= 17 && hour < 20) timeOfDay = '傍晚放松时段';
-  else if (hour >= 20 && hour < 23) timeOfDay = '晚间休息时段';
-  else timeOfDay = '深夜';
-
-  return `当前时间: ${timeStr}，时段: ${timeOfDay}`;
+  return `当前时间: ${timeStr}，时段: ${getTimeOfDay(hour)}`;
 }
 
 function formatRecentPlays(songs: Song[]): string {

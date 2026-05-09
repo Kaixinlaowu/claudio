@@ -185,71 +185,54 @@ function tryParseJson(text: string): AIResponse | null {
   }
 }
 
-function normalizePlayIntent(play: unknown): Array<{ query: string; count?: number }> | undefined {
-  if (!Array.isArray(play) || play.length === 0) return undefined;
+function normalizeActions<T extends Record<string, unknown>>(
+  data: unknown,
+  validActions: readonly string[],
+  pick: (item: Record<string, unknown>) => T,
+): T[] | undefined {
+  if (!Array.isArray(data) || data.length === 0) return undefined;
+  const result = data
+    .filter((item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null &&
+      validActions.includes((item as Record<string, unknown>).action as string)
+    )
+    .map(pick);
+  return result.length > 0 ? result : undefined;
+}
 
+const PLAY_ACTIONS = ['play', 'pause', 'next', 'prev', 'volume_up', 'volume_down', 'mode'] as const;
+const QUEUE_ACTIONS = ['add', 'insert_next', 'remove_index', 'clear', 'play_index', 'describe'] as const;
+const PLAYLIST_ACTIONS = ['create', 'add_song', 'remove_song', 'play_playlist'] as const;
+
+function normalizePlayIntent(play: unknown) {
+  if (!Array.isArray(play) || play.length === 0) return undefined;
   const result = play
     .filter((item): item is Record<string, unknown> =>
-      typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).query === 'string'
-    )
-    .map((item) => ({
-      query: item.query as string,
-      count: typeof item.count === 'number' ? item.count : 3,
-    }));
-
+      typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).query === 'string')
+    .map((item) => ({ query: item.query as string, count: typeof item.count === 'number' ? item.count : 3 }));
   return result.length > 0 ? result : undefined;
 }
 
-function normalizeQueueAction(queue: unknown): Array<{ action: 'add' | 'insert_next' | 'remove_index' | 'clear' | 'play_index' | 'describe'; query?: string; index?: number }> | undefined {
-  if (!Array.isArray(queue) || queue.length === 0) return undefined;
-
-  const validActions = ['add', 'insert_next', 'remove_index', 'clear', 'play_index', 'describe'] as const;
-  const result = queue
-    .filter((item): item is Record<string, unknown> =>
-      typeof item === 'object' && item !== null &&
-      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
-    )
-    .map((item) => ({
-      action: item.action as typeof validActions[number],
-      query: typeof item.query === 'string' ? item.query : undefined,
-      index: typeof item.index === 'number' ? item.index : undefined,
-    }));
-
-  return result.length > 0 ? result : undefined;
+function normalizeQueueAction(queue: unknown) {
+  return normalizeActions(queue, QUEUE_ACTIONS, (item) => ({
+    action: item.action as 'add' | 'insert_next' | 'remove_index' | 'clear' | 'play_index' | 'describe',
+    query: typeof item.query === 'string' ? item.query : undefined,
+    index: typeof item.index === 'number' ? item.index : undefined,
+  }));
 }
 
-function normalizePlaylistAction(playlist: unknown): Array<{ action: 'create' | 'add_song' | 'remove_song' | 'play_playlist'; name?: string; query?: string; playlistName?: string }> | undefined {
-  if (!Array.isArray(playlist) || playlist.length === 0) return undefined;
-
-  const validActions = ['create', 'add_song', 'remove_song', 'play_playlist'] as const;
-  const result = playlist
-    .filter((item): item is Record<string, unknown> =>
-      typeof item === 'object' && item !== null &&
-      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
-    )
-    .map((item) => ({
-      action: item.action as typeof validActions[number],
-      name: typeof item.name === 'string' ? item.name : undefined,
-      query: typeof item.query === 'string' ? item.query : undefined,
-      playlistName: typeof item.playlistName === 'string' ? item.playlistName : undefined,
-    }));
-
-  return result.length > 0 ? result : undefined;
+function normalizePlaylistAction(playlist: unknown) {
+  return normalizeActions(playlist, PLAYLIST_ACTIONS, (item) => ({
+    action: item.action as 'create' | 'add_song' | 'remove_song' | 'play_playlist',
+    name: typeof item.name === 'string' ? item.name : undefined,
+    query: typeof item.query === 'string' ? item.query : undefined,
+    playlistName: typeof item.playlistName === 'string' ? item.playlistName : undefined,
+  }));
 }
 
-function normalizePlayerAction(player: unknown): Array<{ action: 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode'; value?: string }> | undefined {
-  if (!Array.isArray(player) || player.length === 0) return undefined;
-
-  const validActions = ['play', 'pause', 'next', 'prev', 'volume_up', 'volume_down', 'mode'] as const;
-  const result = player
-    .filter((item): item is Record<string, unknown> =>
-      typeof item === 'object' && item !== null &&
-      validActions.includes((item as Record<string, unknown>).action as typeof validActions[number])
-    )
-    .map((item) => ({
-      action: item.action as typeof validActions[number],
-      value: typeof item.value === 'string' ? item.value : undefined,
-    }));
-
-  return result.length > 0 ? result : undefined;
+function normalizePlayerAction(player: unknown) {
+  return normalizeActions(player, PLAY_ACTIONS, (item) => ({
+    action: item.action as 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode',
+    value: typeof item.value === 'string' ? item.value : undefined,
+  }));
 }

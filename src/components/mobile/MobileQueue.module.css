@@ -1,0 +1,160 @@
+.queue {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-area-top);
+  transform: translateX(100%);
+  transition: transform 350ms var(--ease-spring);
+}
+
+.queue.open {
+  transform: translateX(0);
+}
+
+.queue.closing {
+  transform: translateX(100%);
+  transition-duration: 300ms;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 12px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.clearAllBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.clearAllBtn:active {
+  color: #e74c3c;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.section {
+  padding: 12px 0;
+}
+
+.sectionLabel {
+  margin: 0 0 8px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.queueRowWrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.queueRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 200ms ease-out;
+  background: var(--bg-base);
+}
+
+.queueRow.swiped {
+  transform: translateX(-72px);
+}
+
+.grip {
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.rowContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.removeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.removeBtn:active {
+  color: #e74c3c;
+  transform: scale(0.88);
+}
+
+.swipeDelete {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex: 1;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}

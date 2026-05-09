@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import SearchBar from './components/Search/SearchBar';
 import { ChatBubble } from './components/Chat/ChatBubble';
 import { AudioPlayer } from './components/Player/AudioPlayer';
@@ -19,6 +19,7 @@ import { TitleBar } from './components/TitleBar';
 import usePlayerStore from './lib/state/playerStore';
 import { usePlaylistStore } from './lib/state/playlistStore';
 import { scheduler } from './lib/scheduler';
+import { isAndroid } from './lib/audio/platform';
 import './styles/globals.css';
 import './App.css';
 
@@ -228,7 +229,19 @@ function AppContent() {
   );
 }
 
+const MobileApp = lazy(() => import('./components/mobile/MobileApp').then(m => ({ default: m.MobileApp })));
+
 function App() {
+  if (isAndroid()) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0a0a0f', color: '#e0e0e0' }}>Loading...</div>}>
+          <MobileApp />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <AppContent />

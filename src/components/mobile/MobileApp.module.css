@@ -1,0 +1,24 @@
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  overflow: hidden;
+  padding-top: var(--safe-area-top);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--mini-player-height) + var(--nav-height) + var(--safe-area-bottom));
+}
+
+.tabContent {
+  animation: tabFadeIn var(--duration-normal) var(--ease-out-expo);
+  min-height: 100%;
+}

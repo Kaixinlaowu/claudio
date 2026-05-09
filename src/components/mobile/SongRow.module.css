@@ -1,0 +1,113 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  animation: rowSlideIn var(--duration-normal) var(--ease-out-expo) both;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.row:active {
+  background: var(--bg-hover);
+  transition: background 80ms ease;
+}
+
+.active {
+  background: rgba(29, 185, 84, 0.08);
+  border-left: 3px solid var(--accent-primary);
+  padding-left: 13px;
+}
+
+.cover {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.coverPlaceholder {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-highlight);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.equalizer {
+  width: 100%;
+  height: 100%;
+  background: var(--accent-primary-dim);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  padding-bottom: 8px;
+}
+
+.equalizer span {
+  width: 3px;
+  background: var(--accent-primary);
+  border-radius: 1px;
+  animation: eqBounce 0.8s ease-in-out infinite;
+}
+
+.equalizer span:nth-child(1) { height: 12px; animation-delay: 0s; }
+.equalizer span:nth-child(2) { height: 16px; animation-delay: 0.2s; }
+.equalizer span:nth-child(3) { height: 10px; animation-delay: 0.4s; }
+
+@keyframes eqBounce {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  font-size: 15px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.activeName {
+  color: var(--accent-primary);
+}
+
+.artist {
+  display: block;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.duration {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}

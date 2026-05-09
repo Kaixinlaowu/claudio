@@ -28,6 +28,26 @@ function ensureHttps(url: string): string {
   return url.replace(/^http:\/\//, 'https://');
 }
 
+interface NeteaseTrack {
+  id: number;
+  name: string;
+  artists: Array<{ name: string }>;
+  album: { name: string; pic_url?: string };
+  duration: number;
+}
+
+function mapTrackToSong(s: NeteaseTrack): Song {
+  return {
+    id: String(s.id),
+    name: s.name,
+    artist: (s.artists || []).map((a) => a.name).join(', '),
+    album: s.album?.name || 'Unknown Album',
+    coverUrl: ensureHttps(s.album?.pic_url || ''),
+    url: '',
+    duration: s.duration || 0,
+  };
+}
+
 // Search songs using Tauri IPC
 export async function searchSongs(keyword: string): Promise<Song[]> {
   try {
@@ -45,15 +65,7 @@ export async function searchSongs(keyword: string): Promise<Song[]> {
       songs = raw as NeteaseSong[];
     }
 
-    return songs.map((s: NeteaseSong) => ({
-      id: String(s.id),
-      name: s.name,
-      artist: (s.artists || []).map((a: { name: string }) => a.name).join(', '),
-      album: s.album?.name || 'Unknown Album',
-      coverUrl: '', // Will be fetched via getSongsDetails
-      url: '',
-      duration: s.duration,
-    }));
+    return songs.map(mapTrackToSong);
   } catch (err) {
     console.error('[netease.ts] search error:', err);
     throw err;
@@ -132,15 +144,7 @@ export async function getSongsByIds(ids: string[]): Promise<Song[]> {
   if (ids.length === 0) return [];
   try {
     const details = await invoke<NeteaseSongDetail[]>('netease_song_detail', { ids });
-    return (details || []).map((s) => ({
-      id: String(s.id),
-      name: s.name,
-      artist: (s.artists || []).map((a: { name: string }) => a.name).join(', '),
-      album: s.album?.name || 'Unknown Album',
-      coverUrl: ensureHttps(s.album?.pic_url || ''),
-      url: '',
-      duration: s.duration || 0,
-    }));
+    return (details || []).map(mapTrackToSong);
   } catch (err) {
     console.error('[netease.ts] getSongsByIds error:', err);
     return [];
@@ -172,15 +176,7 @@ export async function getUserPlaylists(uid: string): Promise<NeteaseUserPlaylist
 export async function getPlaylistDetail(id: string): Promise<Song[]> {
   try {
     const result = await invoke<NeteaseSong[]>('netease_playlist_detail', { id });
-    return (result || []).map((s: NeteaseSong) => ({
-      id: String(s.id),
-      name: s.name,
-      artist: (s.artists || []).map((a: { name: string }) => a.name).join(', '),
-      album: s.album?.name || 'Unknown Album',
-      coverUrl: ensureHttps(s.album?.pic_url || ''),
-      url: '',
-      duration: s.duration || 0,
-    }));
+    return (result || []).map(mapTrackToSong);
   } catch (err) {
     console.error('[netease.ts] getPlaylistDetail error:', err);
     throw err;
