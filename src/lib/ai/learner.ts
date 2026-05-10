@@ -1,10 +1,10 @@
 import { getPreference, setPreference } from '../db';
 import { chatWithAI } from './claude';
+import { addAgentMemory } from './memory';
 
 const LEARN_INTERVAL = 50; // Learn taste every N plays
 const PREF_PLAY_COUNT = 'learn_play_count';
 const PREF_USER_TASTE = 'user_taste';
-const PREF_USER_MEMORY = 'user_memory';
 
 /**
  * Increment play count and trigger taste learning if threshold reached.
@@ -89,11 +89,7 @@ async function learnHabits(
   const habit = response.say;
 
   if (habit && habit.length > 5) {
-    const existing = await getPreference(PREF_USER_MEMORY);
-    const timestamp = new Date().toLocaleDateString('zh-CN');
-    const entry = `[${timestamp}] 听歌习惯: ${habit}`;
-    const updated = existing ? `${existing}\n${entry}` : entry;
-    await setPreference(PREF_USER_MEMORY, updated);
-    console.log('[learner] Habits appended to memory');
+    await addAgentMemory(`听歌习惯: ${habit}`);
+    console.log('[learner] Habits appended to agent memory');
   }
 }

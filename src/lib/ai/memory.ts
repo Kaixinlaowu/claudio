@@ -108,6 +108,20 @@ async function addEntry(storeKey: 'agent' | 'user', content: string): Promise<bo
 }
 
 /**
+ * Add an entry to agent memory (exported for use by learner.ts).
+ */
+export async function addAgentMemory(content: string): Promise<boolean> {
+  return addEntry('agent', content);
+}
+
+/**
+ * Add an entry to user profile (exported for external use).
+ */
+export async function addUserProfile(content: string): Promise<boolean> {
+  return addEntry('user', content);
+}
+
+/**
  * Consolidate entries when over capacity.
  * Uses AI to merge related entries into shorter versions.
  */
