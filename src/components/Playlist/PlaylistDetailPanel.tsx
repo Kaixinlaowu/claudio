@@ -1,9 +1,12 @@
 import { ArrowLeft, Music, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import styles from './PlaylistDetailPanel.module.css';
 import { usePlaylistStore } from '../../lib/state/playlistStore';
 import type { PlaylistInfo } from '../../lib/state/playlistStore';
 import usePlayerStore from '../../lib/state/playerStore';
 import { formatDuration } from '../../lib/api/netease';
+
+const PAGE_SIZE = 30;
 
 interface PlaylistDetailPanelProps {
   playlist: PlaylistInfo;
@@ -13,6 +16,29 @@ interface PlaylistDetailPanelProps {
 export function PlaylistDetailPanel({ playlist, onBack }: PlaylistDetailPanelProps) {
   const { playlistSongs, loading, removeSongFromPlaylist, loadPlaylistSongs } = usePlaylistStore();
   const { currentSong, setPlaylist, playSongAtIndex } = usePlayerStore();
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset display count when playlist changes
+  useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [playlist.id]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, playlistSongs.length));
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [playlistSongs.length]);
 
   const handlePlaySong = (index: number) => {
     if (!playlistSongs.length) return;
@@ -25,6 +51,9 @@ export function PlaylistDetailPanel({ playlist, onBack }: PlaylistDetailPanelPro
     await removeSongFromPlaylist(playlist.id, songId);
     loadPlaylistSongs(playlist);
   };
+
+  const visibleSongs = playlistSongs.slice(0, displayCount);
+  const hasMore = displayCount < playlistSongs.length;
 
   return (
     <div className={styles.container}>
@@ -39,7 +68,7 @@ export function PlaylistDetailPanel({ playlist, onBack }: PlaylistDetailPanelPro
       </div>
 
       <div className={styles.list}>
-        {loading ? (
+        {loading && playlistSongs.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.loadingDots}>
               <span /><span /><span />
@@ -52,43 +81,53 @@ export function PlaylistDetailPanel({ playlist, onBack }: PlaylistDetailPanelPro
             <span className={styles.emptyHint}>从播放队列添加歌曲吧</span>
           </div>
         ) : (
-          playlistSongs.map((song, index) => (
-            <div
-              key={`${song.id}-${index}`}
-              className={`${styles.item} ${currentSong?.id === song.id ? styles.playing : ''}`}
-              onClick={() => handlePlaySong(index)}
-              style={{ animationDelay: `${index * 30}ms` }}
-            >
-              <span className={styles.index}>
-                {currentSong?.id === song.id ? (
-                  <span className={styles.equalizer}>
-                    <span /><span /><span />
-                  </span>
-                ) : (
-                  index + 1
-                )}
-              </span>
-              {song.coverUrl ? (
-                <img src={song.coverUrl} alt="" className={styles.cover} loading="lazy" />
-              ) : (
-                <div className={styles.coverPlaceholder}>
-                  <Music size={14} />
-                </div>
-              )}
-              <div className={styles.info}>
-                <span className={styles.name}>{song.name}</span>
-                <span className={styles.meta}>{song.artist}</span>
-              </div>
-              <span className={styles.duration}>{formatDuration(song.duration)}</span>
-              <button
-                className={styles.removeBtn}
-                onClick={(e) => handleRemove(e, song.id)}
-                aria-label="从歌单移除"
+          <>
+            {visibleSongs.map((song, index) => (
+              <div
+                key={`${song.id}-${index}`}
+                className={`${styles.item} ${currentSong?.id === song.id ? styles.playing : ''}`}
+                onClick={() => handlePlaySong(index)}
+                style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
               >
-                <X size={14} />
-              </button>
-            </div>
-          ))
+                <span className={styles.index}>
+                  {currentSong?.id === song.id ? (
+                    <span className={styles.equalizer}>
+                      <span /><span /><span />
+                    </span>
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                {song.coverUrl ? (
+                  <img src={song.coverUrl} alt="" className={styles.cover} loading="lazy" />
+                ) : (
+                  <div className={styles.coverPlaceholder}>
+                    <Music size={14} />
+                  </div>
+                )}
+                <div className={styles.info}>
+                  <span className={styles.name}>{song.name}</span>
+                  <span className={styles.meta}>{song.artist}</span>
+                </div>
+                <span className={styles.duration}>{formatDuration(song.duration)}</span>
+                <button
+                  className={styles.removeBtn}
+                  onClick={(e) => handleRemove(e, song.id)}
+                  aria-label="从歌单移除"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
+            {loading && playlistSongs.length > 0 && (
+              <div className={styles.empty}>
+                <div className={styles.loadingDots}>
+                  <span /><span /><span />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

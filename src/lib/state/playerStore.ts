@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { addPlayRecord, getPlayHistory, toggleLike as dbToggleLike, getLikedSongs, setPreference, getPreference } from '../db';
+import { addPlayRecord, getPlayHistory, deletePlayRecord, toggleLike as dbToggleLike, getLikedSongs, setPreference, getPreference } from '../db';
 import type { PlayRecord } from '../db';
 import { getSongUrl, searchSongs, getSongsDetails } from '../api/netease';
 import { buildContext } from '../ai/context';
+import { maybeLearnTaste } from '../ai/learner';
 import { chatWithAI } from '../ai/claude';
 import { useToastStore } from './toastStore';
 import type { Song } from '../ai/types';
@@ -32,18 +33,6 @@ function dbRecordToDisplay(r: PlayRecord): PlayRecordDisplay {
     url: r.url || '',
     liked: r.liked,
     playedAt: r.played_at || '',
-  };
-}
-
-function dbRecordToSong(r: PlayRecord): Song {
-  return {
-    id: r.song_id,
-    name: r.song_name,
-    artist: r.artist,
-    album: r.album || '',
-    coverUrl: r.cover_url || '',
-    url: r.url || '',
-    duration: 0,
   };
 }
 
@@ -107,13 +96,14 @@ export interface PlayerActions {
   toggleAiRecommend: () => void;
   requestAiRecommend: () => Promise<void>;
   loadPlayHistory: () => Promise<void>;
-  loadHistoryAsPlaylist: () => Promise<void>;
   recordPlay: (song: Song) => Promise<void>;
   // TTS actions
   setSpeaking: (speaking: boolean, text?: string) => void;
   // Liked songs actions
   toggleLike: (songId: string, liked: boolean) => Promise<void>;
   loadLikedSongs: () => Promise<void>;
+  playSingleSong: (song: Song) => Promise<void>;
+  removeHistoryRecord: (id: number) => Promise<void>;
   toggleMute: () => void;
   saveQueueState: () => Promise<void>;
   restoreQueueState: () => Promise<boolean>;
@@ -162,7 +152,8 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     const { playlist, currentIndex } = get();
     const result = await resolveWithFallback(song, playlist, currentIndex);
     if (!result) { console.warn('No playable song found in playlist'); return; }
-    set({ currentSong: result.song, currentIndex: result.index, isPlaying: true, progress: 0 });
+    const correctIndex = playlist.findIndex(s => s.id === song.id);
+    set({ currentSong: result.song, currentIndex: correctIndex >= 0 ? correctIndex : currentIndex, isPlaying: true, progress: 0 });
     get().recordPlay(result.song);
     // Prefetch next song URL
     const nextIdx = (result.index + 1) % playlist.length;
@@ -180,7 +171,8 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     const { playlist, currentIndex } = get();
     const result = await resolveWithFallback(song, playlist, currentIndex);
     if (!result) { console.warn('No playable song found in playlist (quiet)'); return; }
-    set({ currentSong: result.song, currentIndex: result.index, isPlaying: false, progress: 0 });
+    const correctIndex = playlist.findIndex(s => s.id === song.id);
+    set({ currentSong: result.song, currentIndex: correctIndex >= 0 ? correctIndex : currentIndex, isPlaying: false, progress: 0 });
   },
 
   play: () => set({ isPlaying: true }),
@@ -353,6 +345,43 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
   setSeeking: (seeking) => set({ isSeeking: seeking }),
   setVolume: (volume) => set({ volume }),
 
+  playSingleSong: async (song) => {
+    console.log('[playSingleSong] called:', song.name, 'id:', song.id, 'url:', song.url || '(empty)');
+    let url = song.url;
+    if (!url) {
+      try {
+        url = await getSongUrl(song.id);
+        console.log('[playSingleSong] resolved url:', url ? url.substring(0, 80) : '(empty)');
+      } catch (err) {
+        console.error('[playSingleSong] getSongUrl threw:', err);
+        useToastStore.getState().show('歌曲链接获取失败');
+        return;
+      }
+    }
+    if (!url) {
+      console.warn('[playSingleSong] No URL for:', song.name);
+      useToastStore.getState().show('该歌曲暂时无法播放');
+      return;
+    }
+    const { playlist } = get();
+    const index = playlist.findIndex(s => s.id === song.id);
+    console.log('[playSingleSong] setting currentSong, index:', index, 'playlistLen:', playlist.length);
+    set({ currentSong: { ...song, url }, isPlaying: true, progress: 0, currentIndex: index >= 0 ? index : 0 });
+    console.log('[playSingleSong] done, currentSong set');
+    get().recordPlay({ ...song, url });
+  },
+
+  removeHistoryRecord: async (id: number) => {
+    try {
+      await deletePlayRecord(id);
+      set((state) => ({
+        playHistory: state.playHistory.filter(r => r.id !== id),
+      }));
+    } catch (err) {
+      console.error('Failed to delete history record:', err);
+    }
+  },
+
   toggleMute: () => set((state) => {
     if (state.isMuted) {
       return { isMuted: false, volume: state.savedVolume };
@@ -441,20 +470,6 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
     }
   },
 
-  loadHistoryAsPlaylist: async () => {
-    try {
-      const history = await getPlayHistory(100);
-      const historySongs = history.map(dbRecordToSong).filter((s) => s.id);
-
-      if (historySongs.length > 0) {
-        set({ playlist: historySongs, currentIndex: 0 });
-        await get().setCurrentSongQuiet(historySongs[0]);
-      }
-    } catch (err) {
-      console.error('Failed to load history as playlist:', err);
-    }
-  },
-
   recordPlay: async (song: Song) => {
     // Dedup: skip if same song recorded within 2 seconds
     const now = Date.now();
@@ -476,8 +491,14 @@ const usePlayerStore = create<PlayerState & PlayerActions>((set, get) => ({
       const display = dbRecordToDisplay(record);
       if (!display.playedAt) display.playedAt = new Date().toISOString();
       set((state) => ({
-        playHistory: [display, ...state.playHistory].slice(0, 100),
+        playHistory: [display, ...state.playHistory.filter(r => r.songId !== display.songId)].slice(0, 100),
       }));
+
+      // Trigger taste learning (non-blocking)
+      const state = get();
+      const recentPlays = state.playHistory.slice(0, 50).map(r => ({ name: r.songName, artist: r.artist }));
+      const likedSongs = state.likedSongs.map(r => ({ songName: r.songName, artist: r.artist }));
+      maybeLearnTaste(recentPlays, likedSongs).catch(() => {});
     } catch (err) {
       console.error('Failed to record play:', err);
     }

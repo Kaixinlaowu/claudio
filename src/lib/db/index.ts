@@ -27,6 +27,7 @@ export interface SongMeta {
   album: string;
   cover_url?: string;
   duration?: number;
+  local_cover?: string;
 }
 
 export interface PlaylistInfo {
@@ -88,6 +89,13 @@ export async function getPlayHistory(limit: number = 100): Promise<PlayRecord[]>
   );
 }
 
+export async function deletePlayRecord(id: number): Promise<void> {
+  return withTauriFallback('delete_play_record', { id }, () => {
+    const history = getLocalHistory().filter((r) => r.id !== id);
+    saveLocalHistory(history);
+  });
+}
+
 export async function toggleLike(id: number, liked: boolean): Promise<void> {
   return withTauriFallback('toggle_like', { id, liked }, () => {
     const history = getLocalHistory();
@@ -128,6 +136,15 @@ export async function savePlaylistSongs(playlistId: number, songIds: string[]): 
 
 export async function getPlaylistSongIds(playlistId: number): Promise<string[]> {
   return withTauriFallback('get_playlist_song_ids', { playlistId }, () => []);
+}
+
+export async function cacheCover(songId: string, coverUrl: string): Promise<string | null> {
+  try {
+    return await tauriInvoke('cache_cover', { songId, coverUrl }) as string | null;
+  } catch (e) {
+    console.warn('[db] cacheCover failed:', e);
+    return null;
+  }
 }
 
 export async function deletePlaylist(id: number): Promise<void> {

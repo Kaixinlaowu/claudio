@@ -18,7 +18,14 @@ src-tauri/gen
 dist
 dist-ssr
 *.local
-release
+realease
+
+# Release folder — keep installer, exclude debug artifacts
+release/app.exe
+release/bundle/
+*.pdb
+*.dmg
+*.AppImage
 
 # Editor directories and files
 .vscode/*
@@ -30,3 +37,7 @@ release
 *.njsproj
 *.sln
 *.sw?
+
+# Debug artifacts
+bash.exe.stackdump
+.claude/

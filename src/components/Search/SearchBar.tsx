@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, X, ListPlus } from 'lucide-react';
 import styles from './SearchBar.module.css';
-import { searchSongs, getSongUrl, getSongsDetails, formatDuration } from '../../lib/api/netease';
+import { searchSongs, getSongsDetails, formatDuration } from '../../lib/api/netease';
 import type { Song } from '../../lib/ai/types';
 import usePlayerStore from '../../lib/state/playerStore';
 
@@ -11,18 +12,23 @@ const SearchBar: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setPlaylist, setCurrentSong, play } = usePlayerStore();
+  const { setPlaylist, playSingleSong, currentSong, insertIntoPlaylist, currentIndex } = usePlayerStore();
   const containerRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showResults) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        portalRef.current && !portalRef.current.contains(target)
+      ) {
         setShowResults(false);
       }
     };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, [showResults]);
 
   const handleSearch = useCallback(async () => {
@@ -54,21 +60,21 @@ const SearchBar: React.FC = () => {
   }, [query]);
 
   const handlePlaySong = useCallback(async (song: Song, allResults: Song[]) => {
-    const url = await getSongUrl(song.id);
-    const songWithUrl = { ...song, url };
-
-    // Add the clicked song + up to 9 more from search results
-    const remaining = allResults
-      .filter((s) => s.id !== song.id)
-      .slice(0, 9);
-    const playlist = [songWithUrl, ...remaining];
-
-    setPlaylist(playlist);
-    setCurrentSong(songWithUrl);
-    play();
+    console.log('[SearchBar] handlePlaySong:', song.name, song.id);
     setShowResults(false);
     setQuery('');
-  }, [setPlaylist, setCurrentSong, play]);
+
+    // Set search results as playlist for next/prev navigation
+    const remaining = allResults.filter((s) => s.id !== song.id).slice(0, 9);
+    setPlaylist([song, ...remaining]);
+
+    // Use playSingleSong to directly resolve URL and play
+    await playSingleSong(song);
+  }, [setPlaylist, playSingleSong]);
+
+  const handlePlayNext = useCallback((song: Song) => {
+    insertIntoPlaylist(currentIndex + 1, song);
+  }, [insertIntoPlaylist, currentIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -99,39 +105,52 @@ const SearchBar: React.FC = () => {
         )}
       </div>
 
-      {showResults && (
-        <div className={styles.results}>
-          {loading ? (
-            <div className={styles.loading}>
-              <div className={styles.spinner}>
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-              </div>
-              <span>搜索中</span>
-            </div>
-          ) : error ? (
-            <div className={styles.noResults}>{error}</div>
-          ) : results.length === 0 ? (
-            <div className={styles.noResults}>未找到相关歌曲</div>
-          ) : (
-            results.map((song, index) => (
-              <div
-                key={song.id}
-                className={styles.resultItem}
-                style={{ animationDelay: `${index * 40}ms` }}
-                onClick={() => handlePlaySong(song, results)}
-              >
-                <img src={song.coverUrl} alt="" className={styles.thumbnail} />
-                <div className={styles.songInfo}>
-                  <span className={styles.songName}>{song.name}</span>
-                  <span className={styles.songMeta}>{song.artist} · {song.album}</span>
+      {showResults && createPortal(
+        <div className={styles.resultsOverlay} ref={portalRef} onClick={() => setShowResults(false)}>
+          <div className={styles.results} onClick={(e) => e.stopPropagation()}>
+            {loading ? (
+              <div className={styles.loading}>
+                <div className={styles.spinner}>
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
+                  <span className={styles.dot} />
                 </div>
-                <span className={styles.duration}>{formatDuration(song.duration)}</span>
+                <span>搜索中</span>
               </div>
-            ))
-          )}
-        </div>
+            ) : error ? (
+              <div className={styles.noResults}>{error}</div>
+            ) : results.length === 0 ? (
+              <div className={styles.noResults}>未找到相关歌曲</div>
+            ) : (
+              results.map((song, index) => {
+                const isPlaying = currentSong?.id === song.id;
+                return (
+                  <div
+                    key={song.id}
+                    className={`${styles.resultItem} ${isPlaying ? styles.playing : ''}`}
+                    style={{ animationDelay: `${index * 40}ms` }}
+                    onClick={() => handlePlaySong(song, results)}
+                  >
+                    <img src={song.coverUrl} alt="" className={styles.thumbnail} />
+                    <div className={styles.songInfo}>
+                      <span className={styles.songName}>{song.name}</span>
+                      <span className={styles.songMeta}>{song.artist} · {song.album}</span>
+                    </div>
+                    <span className={styles.duration}>{formatDuration(song.duration)}</span>
+                    <button
+                      className={styles.playNextBtn}
+                      title="下一首播放"
+                      onClick={(e) => { e.stopPropagation(); handlePlayNext(song); }}
+                    >
+                      <ListPlus size={16} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

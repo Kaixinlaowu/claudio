@@ -75,6 +75,81 @@
   padding: 60px 0;
 }
 
+/* Fullscreen mode */
+.fullScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  max-height: none;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(60px) saturate(150%);
+  -webkit-backdrop-filter: blur(60px) saturate(150%);
+  overflow-y: auto;
+  animation: fadeIn 0.3s ease;
+}
+
+.bgCover {
+  position: absolute;
+  inset: -5%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.15;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: kenBurns 30s ease-in-out infinite alternate;
+}
+
+@keyframes kenBurns {
+  0% { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.1) translate(-2%, -1%); }
+}
+
+.fullScreen .lyricInner {
+  padding: 50vh 0;
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.fullScreen .lyricLine {
+  padding: 10px 0;
+  opacity: 0.4;
+  transform: translateY(4px);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fullScreen .lyricLine.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mainFull {
+  margin: 0;
+  font-size: 24px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  transition: all 0.3s ease;
+}
+
+.subFull {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  transition: all 0.3s ease;
+}
+
+.fullScreen .active .mainFull {
+  color: var(--text-primary);
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.fullScreen .active .subFull {
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
 .loading {
   display: flex;
   flex-direction: column;
@@ -99,4 +174,20 @@
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.progressMini {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: 1001;
+}
+
+.progressMiniFill {
+  height: 100%;
+  background: var(--accent-dynamic);
+  transition: width 0.3s linear;
 }

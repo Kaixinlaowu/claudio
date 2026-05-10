@@ -34,7 +34,7 @@ export function SongRow({ song, isActive, showDuration = true, index = 0, action
   };
 
   return (
-    <div
+    <button
       className={`${styles.row} ${isActive ? styles.active : ''}`}
       onClick={onPlay}
       onPointerDown={handlePointerDown}
@@ -63,6 +63,6 @@ export function SongRow({ song, isActive, showDuration = true, index = 0, action
         <span className={styles.duration}>{formatDuration(song.duration)}</span>
       ) : null}
       {action && <div className={styles.action}>{action}</div>}
-    </div>
+    </button>
   );
 }

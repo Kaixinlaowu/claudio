@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { Song } from '../ai/types';
-import { savePlaylist, getPlaylists, deletePlaylist, savePlaylistSongs, getPlaylistSongIds } from '../db';
-import type { PlaylistInfo as DbPlaylistInfo } from '../db';
+import { savePlaylist, getPlaylists, deletePlaylist, savePlaylistSongs, getPlaylistSongIds, getSongsByIdsLocal, upsertSong, cacheCover } from '../db';
+import type { PlaylistInfo as DbPlaylistInfo, SongMeta } from '../db';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { getSongsByIds, getSongsDetails } from '../api/netease';
 
 export interface PlaylistInfo {
@@ -18,6 +19,7 @@ interface PlaylistStore {
   selectedPlaylist: PlaylistInfo | null;
   playlistSongs: Song[];
   loading: boolean;
+  songCache: Map<string, Song>;
 
   loadPlaylists: () => Promise<void>;
   createPlaylist: (name: string) => Promise<PlaylistInfo>;
@@ -45,48 +47,40 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   selectedPlaylist: null,
   playlistSongs: [],
   loading: false,
+  songCache: new Map(),
 
   loadPlaylists: async () => {
     set({ loading: true });
     try {
       const dbs = await getPlaylists();
       const playlists = dbs.map(dbToInfo);
+      set({ playlists, loading: false });
 
-      // Load song IDs from junction table for each playlist
-      const playlistsWithSongs = playlists.filter((pl) => pl.songCount > 0);
-      if (playlistsWithSongs.length > 0) {
+      // Load first song cover from local DB (no network)
+      const withSongs = playlists.filter(p => p.songCount > 0);
+      for (const pl of withSongs) {
         try {
-          const results = await Promise.all(
-            playlistsWithSongs.map((pl) =>
-              getPlaylistSongIds(pl.id).then((ids) => ({ pl, ids }))
-            )
-          );
-          for (const { pl, ids } of results) {
-            pl.songIds = ids;
-            // Fetch cover for first song
-            if (ids[0]) {
-              try {
-                const details = await getSongsDetails([ids[0]]);
-                const d = details.get(ids[0]);
-                if (d?.coverUrl) pl.coverUrl = d.coverUrl;
-              } catch {}
+          const ids = await getPlaylistSongIds(pl.id);
+          if (ids.length > 0) {
+            const metas = await getSongsByIdsLocal([ids[0]]);
+            const m = metas[0];
+            const cover = m?.local_cover ? convertFileSrc(m.local_cover) : (m?.cover_url || '');
+            if (cover) {
+              set((s) => ({
+                playlists: s.playlists.map(p => p.id === pl.id ? { ...p, coverUrl: cover } : p),
+              }));
             }
           }
-        } catch {
-          // Junction table load failed, continue with empty songIds
-        }
+        } catch {}
       }
-
-      set({ playlists, loading: false });
     } catch {
       set({ loading: false });
     }
   },
 
   createPlaylist: async (name: string) => {
-    const newDb: DbPlaylist = { name, song_ids: '' };
-    const saved = await savePlaylist(newDb);
-    const info = dbToInfo(saved);
+    const saved = await savePlaylist({ name, song_ids: '' });
+    const info: PlaylistInfo = { id: saved.id!, name: saved.name, songIds: [], songCount: 0, createdAt: saved.created_at };
     set((s) => ({ playlists: [...s.playlists, info] }));
     return info;
   },
@@ -172,25 +166,101 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   loadPlaylistSongs: async (playlist: PlaylistInfo) => {
     set({ loading: true });
     try {
-      // Load song IDs from junction table
-      const songIds = await getPlaylistSongIds(playlist.id);
+      let songIds = playlist.songIds;
+      if (songIds.length === 0) {
+        songIds = await getPlaylistSongIds(playlist.id);
+      }
       if (songIds.length === 0) {
         set({ playlistSongs: [], loading: false });
         return;
       }
-      // Fetch full song details from Netease API
-      const BATCH_SIZE = 100;
-      const allSongs: Song[] = [];
-      for (let i = 0; i < songIds.length; i += BATCH_SIZE) {
-        const batch = songIds.slice(i, i + BATCH_SIZE);
-        const batchSongs = await getSongsByIds(batch);
-        allSongs.push(...batchSongs);
+
+      // 1. Query local SQLite cache
+      const localMetas = await getSongsByIdsLocal(songIds);
+      const localMap = new Map<string, SongMeta>();
+      for (const m of localMetas) localMap.set(m.song_id, m);
+
+      const toLocalUrl = (path: string) => {
+        try { return convertFileSrc(path); } catch { return ''; }
+      };
+
+      const songMetaToSong = (m: SongMeta): Song => ({
+        id: m.song_id,
+        name: m.name,
+        artist: m.artist,
+        album: m.album,
+        coverUrl: m.local_cover ? toLocalUrl(m.local_cover) : (m.cover_url || ''),
+        url: '',
+        duration: m.duration || 0,
+      });
+
+      // Songs with real metadata (not placeholders)
+      const validMetas = localMetas.filter(m => m.name && m.name !== m.song_id);
+      const validIds = new Set(validMetas.map(m => m.song_id));
+      const uncachedIds = songIds.filter(id => !validIds.has(id));
+
+      // 2. Show cached songs immediately
+      const orderedCached = songIds
+        .filter(id => validIds.has(id))
+        .map(id => songMetaToSong(localMap.get(id)!));
+      set({ playlistSongs: orderedCached });
+
+      if (uncachedIds.length === 0) {
+        set({ loading: false });
+        return;
       }
-      // Preserve order from junction table
-      const ordered = songIds
-        .map((id) => allSongs.find((s) => s.id === id))
-        .filter(Boolean) as Song[];
-      set({ playlistSongs: ordered, loading: false });
+
+      // 3. Fetch uncached from network in batches
+      const BATCH_SIZE = 100;
+      const newCache = new Map(get().songCache);
+
+      for (let i = 0; i < uncachedIds.length; i += BATCH_SIZE) {
+        const batch = uncachedIds.slice(i, i + BATCH_SIZE);
+        const batchSongs = await getSongsByIds(batch);
+
+        // Upsert to local DB for future fast loads
+        for (const s of batchSongs) {
+          upsertSong({
+            song_id: s.id,
+            name: s.name,
+            artist: s.artist,
+            album: s.album,
+            cover_url: s.coverUrl,
+            duration: s.duration,
+          }).catch(() => {});
+          newCache.set(s.id, s);
+        }
+
+        // Merge: replace ordered list with all known songs
+        const allMap = new Map<string, Song>();
+        for (const s of get().playlistSongs) allMap.set(s.id, s);
+        for (const s of batchSongs) allMap.set(s.id, s);
+
+        const ordered = songIds
+          .map(id => allMap.get(id))
+          .filter(Boolean) as Song[];
+
+        set({ playlistSongs: ordered });
+      }
+
+      set({ songCache: newCache, loading: false });
+
+      // 4. Background: cache covers locally for songs without local_cover
+      const allMetas = await getSongsByIdsLocal(songIds);
+      const uncachedCovers = allMetas.filter(m => m.cover_url && !m.local_cover);
+      for (const m of uncachedCovers) {
+        cacheCover(m.song_id, m.cover_url!).then((localPath) => {
+          if (localPath) {
+            // Update the song in playlistSongs with local cover URL
+            const localUrl = toLocalUrl(localPath);
+            set((s) => ({
+              playlistSongs: s.playlistSongs.map(song =>
+                song.id === m.song_id ? { ...song, coverUrl: localUrl } : song
+              ),
+            }));
+          }
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error('Failed to load playlist songs:', err);
       set({ playlistSongs: [], loading: false });
@@ -198,7 +268,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   },
 
   setSelectedPlaylist: (p) => {
-    set({ selectedPlaylist: p, playlistSongs: [] });
+    set({ selectedPlaylist: p });
   },
 
   isSongInPlaylist: (playlistId: number, songId: string) => {

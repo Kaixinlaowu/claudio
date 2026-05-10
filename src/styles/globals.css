@@ -103,6 +103,12 @@
   --gradient-purple: linear-gradient(135deg, #7b2ff7, #c084fc);
   --gradient-warm: linear-gradient(135deg, #e8a54b, #f0c27f);
 
+  /* Dynamic accent — updated per-song by extractColors */
+  --accent-dynamic: #1db954;
+  --accent-dynamic-glow: rgba(29, 185, 84, 0.3);
+  --accent-bg-1: #1a1a2e;
+  --accent-bg-2: #16213e;
+
   /* Cover shadow */
   --shadow-cover: 0 16px 48px rgba(0, 0, 0, 0.6);
 

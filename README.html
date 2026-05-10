@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudio — 个人 AI 电台</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #050505;
+    --surface: #0d0d0d;
+    --elevated: #151515;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text: #f0f0f0;
+    --text-2: #999;
+    --text-3: #555;
+    --accent: #1db954;
+    --accent-dim: rgba(29,185,84,0.15);
+    --gold: #e8a54b;
+    --purple: #7c3aed;
+    --blue: #3b82f6;
+    --pink: #ec4899;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Background ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 15% 20%, rgba(29,185,84,0.07), transparent),
+      radial-gradient(ellipse 500px 500px at 85% 70%, rgba(124,58,237,0.05), transparent),
+      radial-gradient(ellipse 400px 300px at 50% 50%, rgba(232,165,75,0.03), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Grid overlay ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 28px;
+    padding: 80px 0;
+    position: relative;
+  }
+
+  .logo-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+  }
+
+  .logo-ring::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 28px;
+    background: conic-gradient(from 0deg, var(--accent), var(--purple), var(--gold), var(--accent));
+    animation: spin 6s linear infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .logo-mark {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 24px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -2px;
+    z-index: 1;
+  }
+
+  .hero h1 {
+    font-size: clamp(3rem, 8vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 70%, var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero .tagline {
+    font-size: 1.2rem;
+    color: var(--text-2);
+    max-width: 520px;
+    font-weight: 300;
+    line-height: 1.7;
+  }
+
+  .hero-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 4px;
+  }
+
+  .badge {
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-2);
+    letter-spacing: 0.02em;
+  }
+
+  .badge.accent { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    animation: bounce 2s ease-in-out infinite;
+    color: var(--text-3);
+    font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .scroll-hint svg { width: 20px; height: 20px; stroke: var(--text-3); }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(6px); }
+  }
+
+  /* ── Sections ── */
+  section { padding: 80px 0; }
+
+  section + section { border-top: 1px solid var(--border); }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+  }
+
+  .section-desc {
+    color: var(--text-2);
+    margin-bottom: 44px;
+    font-size: 1rem;
+    max-width: 560px;
+    line-height: 1.7;
+  }
+
+  /* ── Feature grid ── */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-hover);
+    background: var(--elevated);
+  }
+
+  .feature-card:hover::before { opacity: 1; }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(29,185,84,0.2);
+  }
+
+  .feature-icon.purple { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.25); }
+  .feature-icon.gold { background: rgba(232,165,75,0.12); border-color: rgba(232,165,75,0.25); }
+  .feature-icon.blue { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); }
+  .feature-icon.pink { background: rgba(236,72,153,0.12); border-color: rgba(236,72,153,0.25); }
+
+  .feature-card h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .feature-card p {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  /* ── AI Architecture ── */
+  .arch-flow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 700px;
+  }
+
+  .arch-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color 0.3s ease;
+  }
+
+  .arch-step:hover { border-color: var(--border-hover); }
+
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(29,185,84,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .step-content h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .step-content p {
+    font-size: 0.8rem;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .step-arrow {
+    text-align: center;
+    color: var(--text-3);
+    font-size: 0.75rem;
+    padding: 2px 0;
+    padding-left: 14px;
+  }
+
+  /* ── Memory system ── */
+  .memory-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.8;
+    color: var(--text-2);
+    overflow-x: auto;
+    max-width: 700px;
+  }
+
+  .memory-block .header { color: var(--accent); font-weight: 600; }
+  .memory-block .entry { color: var(--text); }
+  .memory-block .dim { color: var(--text-3); }
+
+  /* ── Tech grid ── */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .tech-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color 0.3s ease;
+  }
+
+  .tech-item:hover { border-color: var(--border-hover); }
+
+  .tech-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .tech-name { font-weight: 600; font-size: 0.9rem; }
+  .tech-role { font-size: 0.75rem; color: var(--text-3); margin-top: 2px; }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.9;
+    color: var(--text-2);
+    overflow-x: auto;
+    max-width: 700px;
+  }
+
+  .code-block .comment { color: var(--text-3); }
+  .code-block .cmd { color: var(--accent); }
+  .code-block .str { color: var(--gold); }
+
+  /* ── Download ── */
+  .download-section {
+    text-align: center;
+    padding: 100px 0;
+  }
+
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 32px;
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+  }
+
+  .download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px var(--accent-dim);
+  }
+
+  .download-btn svg { width: 18px; height: 18px; }
+
+  .download-note {
+    margin-top: 16px;
+    font-size: 0.8rem;
+    color: var(--text-3);
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 48px 0;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .features { grid-template-columns: 1fr 1fr; }
+    .hero { padding: 60px 0; min-height: auto; }
+    section { padding: 56px 0; }
+  }
+
+  @media (max-width: 480px) {
+    .features { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- ═══ Hero ═══ -->
+  <header class="hero">
+    <div class="logo-ring">
+      <div class="logo-mark">C</div>
+    </div>
+    <h1>Claudio</h1>
+    <p class="tagline">你的个人 AI 电台 — 学习听歌习惯，像 DJ 一样为你播报和排程音乐</p>
+    <div class="hero-badges">
+      <span class="badge accent">AI DJ</span>
+      <span class="badge">Tauri 2.x</span>
+      <span class="badge">React 19</span>
+      <span class="badge">Rust</span>
+      <span class="badge">网易云音乐</span>
+    </div>
+    <div class="scroll-hint">
+      <span>SCROLL</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <path d="M12 5v14M5 12l7 7 7-7"/>
+      </svg>
+    </div>
+  </header>
+
+  <!-- ═══ Features ═══ -->
+  <section>
+    <div class="section-label">Features</div>
+    <h2 class="section-title">核心功能</h2>
+    <p class="section-desc">不只是播放器，而是一个能理解你口味、记住你偏好的音乐伙伴。</p>
+    <div class="features">
+
+      <div class="feature-card">
+        <div class="feature-icon">🎙</div>
+        <h3>AI DJ 播报</h3>
+        <p>结合时段和你的口味，AI 像电台 DJ 一样自然地介绍下一首歌。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon purple">🧠</div>
+        <h3>自主记忆</h3>
+        <p>自动学习你的音乐偏好、习惯和不喜欢的类型，跨会话持久化，无需手动设置。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon gold">💬</div>
+        <h3>自然语言控制</h3>
+        <p>"放点轻松的歌"、"音量调到30"、"下一首放周杰伦" — 说人话就行。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon blue">🎵</div>
+        <h3>歌词同步</h3>
+        <p>LRC 歌词逐行滚动，支持翻译歌词对照显示，全屏沉浸模式。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon pink">🎨</div>
+        <h3>动态主题</h3>
+        <p>从专辑封面提取主色调，进度条、按钮、背景渐变随音乐实时变化。</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>歌单管理</h3>
+        <p>创建本地歌单，一键导入网易云歌单，支持 800+ 首大歌单优化加载。</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ AI Architecture ═══ -->
+  <section>
+    <div class="section-label">AI System</div>
+    <h2 class="section-title">AI 系统架构</h2>
+    <p class="section-desc">两层意图路由 — 简单指令直接执行，语义请求走 AI 理解。</p>
+    <div class="arch-flow">
+      <div class="arch-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>意图分类</h4>
+          <p>正则匹配简单指令（播放/暂停/下一首）→ 直接执行，无需 AI</p>
+        </div>
+      </div>
+      <div class="step-arrow">↓ 语义请求</div>
+      <div class="arch-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>上下文构建</h4>
+          <p>注入记忆、播放状态、时段、用户品味、对话历史</p>
+        </div>
+      </div>
+      <div class="step-arrow">↓</div>
+      <div class="arch-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>LLM 调用</h4>
+          <p>发送到 Claude / MiniMax API，返回结构化 JSON（say + actions）</p>
+        </div>
+      </div>
+      <div class="step-arrow">↓</div>
+      <div class="arch-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Action 执行</h4>
+          <p>解析 JSON 中的 play / queue / player / playlist 指令，执行对应操作</p>
+        </div>
+      </div>
+      <div class="step-arrow">↓ 静默</div>
+      <div class="arch-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h4>记忆提取</h4>
+          <p>自动分析对话，提取用户偏好/习惯/不喜欢，写入持久化记忆</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Memory System ═══ -->
+  <section>
+    <div class="section-label">Memory</div>
+    <h2 class="section-title">自主记忆系统</h2>
+    <p class="section-desc">对标 Hermes Agent 设计 — 双存储分离、严格容量限制、安全扫描。</p>
+    <div class="memory-block"><span class="header">══ USER PROFILE [67% — 920/1375 chars] ══</span>
+<span class="entry">喜欢爵士和古典，尤其钢琴爵士§</span>
+<span class="entry">晚上习惯听轻音乐入睡§</span>
+<span class="entry">工作时偏好 lo-fi 和 ambient§</span>
+<span class="entry">不要推荐抖音神曲和重金属§</span>
+
+<span class="header">══ AGENT MEMORY [45% — 990/2200 chars] ══</span>
+<span class="entry">用户是夜猫子，凌晨1点还在听歌§</span>
+<span class="entry">周末偏好 upbeat 音乐§</span>
+<span class="entry">上次说心情不好，推荐了治愈系§</span>
+<span class="dim">自动提取 · 容量限制 · 安全扫描 · 子字符串匹配更新</span></div>
+  </section>
+
+  <!-- ═══ Tech Stack ═══ -->
+  <section>
+    <div class="section-label">Tech Stack</div>
+    <h2 class="section-title">技术栈</h2>
+    <p class="section-desc">桌面端原生体验，前端现代框架，后端高性能 Rust。</p>
+    <div class="tech-grid">
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #ffc131, #ff6b35); color: #000;">T</div>
+        <div>
+          <div class="tech-name">Tauri 2.x</div>
+          <div class="tech-role">桌面框架 · 轻量 · 安全</div>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #61dafb, #3178c6); color: #000;">R</div>
+        <div>
+          <div class="tech-name">React 19</div>
+          <div class="tech-role">UI 框架 · 并发渲染</div>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #3178c6, #235a97); color: #fff;">TS</div>
+        <div>
+          <div class="tech-name">TypeScript</div>
+          <div class="tech-role">类型安全 · 开发体验</div>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #ff6b35, #f7484e); color: #fff;">Rs</div>
+        <div>
+          <div class="tech-name">Rust</div>
+          <div class="tech-role">后端 · rusqlite · reqwest</div>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #646cff, #7c3aed); color: #fff;">V</div>
+        <div>
+          <div class="tech-name">Vite</div>
+          <div class="tech-role">构建工具 · HMR</div>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-logo" style="background: linear-gradient(135deg, #f5a623, #e8a54b); color: #000;">Z</div>
+        <div>
+          <div class="tech-name">Zustand</div>
+          <div class="tech-role">状态管理 · 轻量</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ Quick Start ═══ -->
+  <section>
+    <div class="section-label">Getting Started</div>
+    <h2 class="section-title">快速开始</h2>
+    <p class="section-desc">克隆项目，配置 API 密钥，一键启动。</p>
+    <div class="code-block"><span class="comment"># 克隆仓库</span>
+<span class="cmd">git clone</span> <span class="str">https://github.com/yourname/claudio.git</span>
+<span class="cmd">cd</span> claudio
+
+<span class="comment"># 安装依赖</span>
+<span class="cmd">npm install</span>
+
+<span class="comment"># 配置环境变量（编辑 .env 填入 API key 和网易云 cookie）</span>
+<span class="cmd">cp</span> .env.example .env
+
+<span class="comment"># Tauri 桌面端开发</span>
+<span class="cmd">npm run tauri dev</span>
+
+<span class="comment"># 构建 Windows 安装包</span>
+<span class="cmd">npm run tauri build</span></div>
+  </section>
+
+  <!-- ═══ Download ═══ -->
+  <section class="download-section">
+    <div class="section-label">Download</div>
+    <h2 class="section-title">下载 Claudio</h2>
+    <p class="section-desc" style="margin: 0 auto 32px;">前往 Releases 页面下载 Windows 桌面端安装包。</p>
+    <a href="../../releases" class="download-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      下载 Windows 安装包
+    </a>
+    <p class="download-note">v0.1.0 · Windows x64 · 约 2.3 MB</p>
+  </section>
+
+  <!-- ═══ Footer ═══ -->
+  <footer>
+    <p>Built with Tauri + React + Rust &mdash; Powered by <a href="https://claude.ai">Claude AI</a></p>
+    <p style="margin-top: 8px;">Claudio &copy; 2026</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

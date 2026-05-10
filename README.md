@@ -1,35 +1,58 @@
 # Claudio — 个人 AI 电台
 
-> 学习听歌习惯，规划声音排程，像 DJ 一样播报音乐。
+> 学习听歌习惯，规划声音排程，像 DJ 一样为你播报音乐。
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Tauri-2.x-ffc131?style=flat-square&logo=tauri" alt="Tauri 2.x">
+  <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react" alt="React 19">
+  <img src="https://img.shields.io/badge/Rust-ff6b35?style=flat-square&logo=rust" alt="Rust">
+  <img src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/License-Private-red?style=flat-square" alt="License">
+</p>
 
 ---
 
 ## 功能特性
 
-- **AI DJ**：学习你的音乐品味，像私人电台主持人一样推荐和播报歌曲
-- **自然语言控制**：通过 AI 对话控制播放队列 — 添加、插入、删除、跳转、清空
-- **网易云音乐**：搜索、播放、歌词、歌单全功能集成（通过 Tauri IPC）
-- **歌单管理**：创建本地歌单，从网易云导入歌单，支持进度显示
-- **定时播报**：基于时段的音乐推送（早间、工作、傍晚、夜间模式）
-- **语音播报**：TTS 合成正在播放信息
-- **歌词显示**：LRC 歌词同步滚动
-- **队列持久化**：播放队列自动保存，重启后恢复
-- **播放历史**：SQLite 存储播放记录和喜欢的歌曲
+### AI DJ 系统
+- **智能播报** — AI 像电台 DJ 一样介绍歌曲，结合时段、天气、用户心情生成个性化播报词
+- **自然语言控制** — 通过对话控制播放："放点轻松的歌"、"下一首放周杰伦"、"音量调到30"
+- **自主记忆** — 自动学习用户偏好、习惯、不喜欢的类型，跨会话持久化
+- **语义点歌** — "来点适合工作的音乐"、"我心情不好" → AI 自动匹配歌曲
+- **播放控制** — AI 可控制播放/暂停/上下首/音量/播放模式/收藏
+
+### 音乐播放
+- **网易云音乐** — 搜索、播放、歌词、歌单全功能集成
+- **歌词同步** — LRC 歌词逐行滚动，支持翻译歌词对照
+- **动态主题** — 从专辑封面提取主色调，UI 随音乐实时变化
+- **封面缓存** — 本地缓存歌曲封面，减少网络请求
+- **播放队列** — 添加、插入、删除、跳转、清空，重启后自动恢复
+
+### 歌单管理
+- **本地歌单** — 创建、编辑、删除歌单
+- **网易云导入** — 一键导入网易云歌单（支持 800+ 首大歌单优化）
+- **收藏系统** — 收藏喜欢的歌曲，独立管理
+- **播放历史** — 自动记录播放历史，支持回溯
+
+### 跨平台
+- **Windows 桌面端** — Tauri 原生窗口，自定义标题栏
+- **Android 移动端** — 触控优化 UI，适配手机屏幕
+- **TTS 语音** — 小米 TTS 合成，可选语音播报
 
 ---
 
 ## 技术栈
 
-| 层 | 技术 |
-|----|------|
-| 桌面框架 | Tauri 2.x |
-| 前端 | React 19 + TypeScript + Vite |
-| 状态管理 | Zustand |
-| 后端 | Rust (rusqlite, reqwest, tokio) |
-| 数据库 | SQLite |
-| 音乐 API | 网易云音乐（直连 API） |
-| TTS | 小米 TTS (mimo-v2.5-tts) |
-| AI | Claude API / MiniMax 兼容接口 |
+| 层 | 技术 | 说明 |
+|----|------|------|
+| 桌面框架 | Tauri 2.x | 轻量、安全、原生性能 |
+| 前端 | React 19 + TypeScript + Vite | 并发渲染、类型安全、快速构建 |
+| 状态管理 | Zustand | 轻量级响应式状态 |
+| 后端 | Rust | rusqlite / reqwest / tokio |
+| 数据库 | SQLite | 本地持久化 |
+| 音乐 API | 网易云音乐 | 直连 API（需 cookie） |
+| TTS | 小米 TTS | mimo-v2.5-tts |
+| AI | Claude API / MiniMax | 兼容 Anthropic 协议 |
 
 ---
 
@@ -79,36 +102,94 @@ npm run tauri:android:build
 ## 项目结构
 
 ```
-src/
-├── lib/
-│   ├── api/netease.ts      # 网易云 API 客户端
-│   ├── ai/                 # AI 路由、上下文、对话适配
-│   ├── state/              # Zustand 状态管理
-│   ├── audio/              # 音频服务抽象（桌面/安卓）
-│   ├── db/                 # 数据库接口（Tauri IPC）
-│   └── scheduler.ts        # 定时任务
-├── components/
-│   ├── Player/             # 播放器组件
-│   ├── Playlist/           # 歌单、历史、收藏
-│   ├── Chat/               # AI 对话
-│   └── mobile/             # 移动端适配
-└── styles/                 # 全局样式、CSS 变量
-
-src-tauri/src/
-├── lib.rs                  # 入口、数据库命令
-├── config.rs               # 配置加载与缓存
-└── netease.rs              # 网易云 API、TTS
+claudio/
+├── src-tauri/                    # Rust 后端
+│   ├── src/
+│   │   ├── lib.rs                # 入口、DB 命令、迁移
+│   │   ├── config.rs             # .env 加载、配置缓存
+│   │   └── netease.rs            # 网易云 API、TTS 合成
+│   └── Cargo.toml
+├── src/                          # React 前端
+│   ├── lib/
+│   │   ├── ai/                   # AI 系统
+│   │   │   ├── router.ts         # 意图分类（简单指令 vs 语义请求）
+│   │   │   ├── claude.ts         # LLM API 调用 + JSON 解析
+│   │   │   ├── context.ts        # 上下文构建（记忆、环境、播放状态）
+│   │   │   ├── memory.ts         # 自主记忆系统（双存储、容量限制、安全扫描）
+│   │   │   └── types.ts          # 类型定义
+│   │   ├── state/                # Zustand 状态管理
+│   │   │   ├── playerStore.ts    # 播放器状态
+│   │   │   ├── playlistStore.ts  # 歌单状态
+│   │   │   └── chatStore.ts      # 聊天 + action 执行
+│   │   ├── api/netease.ts        # 网易云 API 客户端
+│   │   ├── audio/                # 音频服务抽象（桌面/安卓）
+│   │   ├── db/                   # Tauri IPC 数据库封装
+│   │   └── tts.ts                # TTS 调用
+│   ├── components/
+│   │   ├── Player/               # 播放器、封面、歌词、进度条
+│   │   ├── Playlist/             # 歌单、历史、收藏
+│   │   ├── Chat/                 # AI 聊天面板
+│   │   ├── Search/               # 搜索栏
+│   │   └── mobile/               # Android 移动端组件
+│   └── styles/globals.css
+├── public/
+│   ├── prompts/                  # AI DJ 人格提示词
+│   └── user/                     # 用户品味/作息配置
+└── release/                      # 构建产物
 ```
+
+---
+
+## AI 系统架构
+
+```
+用户输入
+  │
+  ├─ 简单指令（"播放"、"暂停"、"下一首"）→ router.ts 直接执行
+  │
+  └─ 语义请求（"放点轻松的歌"）→ context.ts 构建上下文
+                                      │
+                                      ▼
+                              claude.ts 调用 LLM
+                                      │
+                                      ▼
+                              JSON 响应解析
+                              { say, play, queue, player, playlist }
+                                      │
+                        ┌─────────────┼─────────────┐
+                        ▼             ▼             ▼
+                   播放控制       队列操作       歌单操作
+                   (play/pause   (add/remove   (create/add
+                    /next/prev)   /insert)      /play)
+```
+
+### 记忆系统
+
+对标 Hermes Agent 设计的自主记忆系统：
+
+- **双存储分离** — `user_profile`（用户画像）+ `agent_memory`（Agent 笔记）
+- **严格容量限制** — 1375 + 2200 字符，超限自动合并
+- **安全扫描** — 阻止 prompt injection 模式
+- **自动提取** — 每次对话后静默分析，无需用户主动提出
+- **上下文注入** — 带容量百分比的结构化块注入系统提示
 
 ---
 
 ## 数据存储
 
-- **songs**：统一歌曲元数据（song_id 主键）
-- **plays**：播放历史记录
-- **playlists**：歌单列表
-- **playlist_songs**：歌单与歌曲的关联关系
-- **preferences**：用户偏好设置（键值对）
+| 表 | 说明 |
+|----|------|
+| `songs` | 统一歌曲元数据（song_id 主键，含本地封面路径） |
+| `plays` | 播放历史记录 |
+| `playlists` | 歌单列表 |
+| `playlist_songs` | 歌单与歌曲关联表 |
+| `preferences` | 键值对偏好存储（记忆、配置） |
+
+---
+
+## 下载
+
+前往 [Releases](../../releases) 下载 Windows 安装包。
 
 ---
 

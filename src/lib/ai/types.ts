@@ -30,7 +30,7 @@ export interface PlaylistAction {
 }
 
 export interface PlayerAction {
-  action: 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode';
+  action: 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode' | 'set_volume' | 'like';
   value?: string;
 }
 

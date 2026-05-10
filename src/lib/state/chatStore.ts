@@ -1,9 +1,11 @@
 import { create } from 'zustand';
-import type { ChatMessage, Song, AIResponse } from '../ai/types';
+import type { ChatMessage, Song } from '../ai/types';
 import type { PlayIntent, QueueAction, PlaylistAction, PlayerAction } from '../ai/types';
 import { classifyIntent, parseCommand } from '../ai/router';
 import { buildContext } from '../ai/context';
+import type { PlayerStateInfo } from '../ai/context';
 import { chatWithAI } from '../ai/claude';
+import { extractMemories } from '../ai/memory';
 import { searchSongs, getSongsDetails } from '../api/netease';
 import { speak } from '../tts';
 import usePlayerStore from './playerStore';
@@ -127,6 +129,16 @@ function executePlayerActions(actions: PlayerAction[]) {
       case 'mode':
         if (pa.value) usePlayerStore.setState({ playMode: pa.value as PlayMode });
         break;
+      case 'set_volume': {
+        const vol = pa.value ? parseInt(pa.value, 10) : NaN;
+        if (!isNaN(vol)) player.setVolume(Math.max(0, Math.min(100, vol)) / 100);
+        break;
+      }
+      case 'like': {
+        const current = player.currentSong;
+        if (current) player.toggleLike(current.id, true);
+        break;
+      }
     }
   }
 }
@@ -184,7 +196,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         : '';
       if (plState.playlists.length === 0) plState.loadPlaylists().catch(() => {});
 
-      const { messages: ctxMessages, system } = await buildContext(text, recentHistory, player.playlist, history, playlistsText);
+      const playerState: PlayerStateInfo = {
+        currentSong: player.currentSong,
+        isPlaying: player.isPlaying,
+        playMode: player.playMode,
+        volume: player.volume,
+        currentIndex: player.currentIndex,
+        playlistLength: player.playlist.length,
+        likedSongs: player.likedSongs.map(s => ({ songName: s.songName, artist: s.artist })),
+      };
+
+      const { messages: ctxMessages, system } = await buildContext(text, recentHistory, player.playlist, history, playlistsText, playerState);
       const aiResponse = await chatWithAI(ctxMessages, system);
 
       set((state) => ({
@@ -198,6 +220,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (aiResponse.queue?.length) await executeQueueActions(aiResponse.queue);
       if (aiResponse.playlist?.length) await executePlaylistActions(aiResponse.playlist);
       if (aiResponse.player?.length) executePlayerActions(aiResponse.player);
+
+      // Autonomous memory extraction (background, non-blocking)
+      extractMemories(text, aiResponse.say).catch(() => {});
     } catch (err) {
       console.error('Chat error:', err);
       set((state) => ({

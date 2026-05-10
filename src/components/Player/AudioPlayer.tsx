@@ -7,11 +7,11 @@ export function AudioPlayer() {
   const lastProgressRef = useRef<number>(0);
   const serviceRef = useRef(getAudioService());
   const loadedUrlRef = useRef<string>('');
+  const audioLoadingRef = useRef(false);
 
   // Load and play new song — only when URL actually changes
   useEffect(() => {
     if (!currentSong?.url) {
-      // Song cleared (e.g. playlist emptied) — stop audio
       if (loadedUrlRef.current) {
         loadedUrlRef.current = '';
         serviceRef.current.stop();
@@ -20,7 +20,9 @@ export function AudioPlayer() {
     }
     if (currentSong.url === loadedUrlRef.current) return;
     loadedUrlRef.current = currentSong.url;
+    audioLoadingRef.current = true;
     const service = serviceRef.current;
+    console.log('[AudioPlayer] loading:', currentSong.name, currentSong.url);
     service.play(currentSong.url, {
       title: currentSong.name,
       artist: currentSong.artist,
@@ -28,15 +30,17 @@ export function AudioPlayer() {
       coverUrl: currentSong.coverUrl || '',
     });
     lastProgressRef.current = 0;
-    service.resume();
   }, [currentSong]);
 
-  // Handle play/pause
+  // Handle play/pause — only resume when audio is ready
   useEffect(() => {
     if (!currentSong?.url) return;
+    console.log('[AudioPlayer] isPlaying effect:', isPlaying, 'loading:', audioLoadingRef.current);
     const service = serviceRef.current;
     if (isPlaying) {
-      service.resume();
+      if (!audioLoadingRef.current) {
+        service.resume();
+      }
     } else {
       service.pause();
     }
@@ -67,11 +71,15 @@ export function AudioPlayer() {
       usePlayerStore.getState().playNext();
     });
     const unsubPrepared = service.onPrepared((duration) => {
+      audioLoadingRef.current = false;
       if (duration > 0) {
         const durationMs = Math.round(duration * 1000);
         usePlayerStore.setState((state) => ({
           currentSong: state.currentSong ? { ...state.currentSong, duration: durationMs } : null,
         }));
+      }
+      if (!usePlayerStore.getState().isPlaying) {
+        service.pause();
       }
     });
     const unsubError = service.onError((_error) => {

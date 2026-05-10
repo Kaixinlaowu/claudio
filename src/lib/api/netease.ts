@@ -104,6 +104,7 @@ export async function getSongsDetails(ids: string[]): Promise<Map<string, { cove
 
 interface LyricResult {
   lrc?: { lyric?: string };
+  klyric?: { lyric?: string };
   tlyric?: { lyric?: string };
 }
 
@@ -130,7 +131,24 @@ export async function getLyric(id: string): Promise<{ original: Array<{ time: nu
   try {
     const text = await invoke<string>('netease_lyric', { id });
     const data: LyricResult = JSON.parse(text);
-    const original = data.lrc?.lyric ? parseLrc(data.lrc.lyric) : [];
+
+    // Try lrc first, then klyric as fallback
+    const lrcStr = data.lrc?.lyric || data.klyric?.lyric || '';
+    const original = parseLrc(lrcStr);
+
+    // If no timestamped lines found, treat as plain text lyrics
+    if (original.length === 0 && lrcStr.trim()) {
+      const plainLines = lrcStr.split('\n')
+        .map(l => l.replace(/\[.*?\]/g, '').trim())
+        .filter(l => l.length > 0);
+      if (plainLines.length > 0) {
+        return {
+          original: plainLines.map((t, i) => ({ time: i * 5, text: t })),
+          translated: [],
+        };
+      }
+    }
+
     const translated = data.tlyric?.lyric ? parseLrc(data.tlyric.lyric) : [];
     return { original, translated };
   } catch (err) {

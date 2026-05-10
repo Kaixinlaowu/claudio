@@ -2,7 +2,7 @@ import { cpSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const RELEASE_DIR = join(ROOT, "release");
+const RELEASE_DIR = join(ROOT, "realease");
 
 mkdirSync(RELEASE_DIR, { recursive: true });
 

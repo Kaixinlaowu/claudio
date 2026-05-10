@@ -1,0 +1,29 @@
+.bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  cursor: pointer;
+  z-index: 10;
+  transition: height 0.2s ease;
+  padding: 0;
+}
+
+.bar:hover,
+.bar.dragging {
+  height: 8px;
+}
+
+.track {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent-dynamic);
+  transition: width 100ms linear;
+  box-shadow: 0 0 6px var(--accent-dynamic-glow);
+}

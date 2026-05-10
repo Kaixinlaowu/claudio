@@ -94,7 +94,7 @@ export function MobileSearch({ initialQuery }: Props) {
   };
   const currentSong = usePlayerStore((s) => s.currentSong);
   const setPlaylist = usePlayerStore((s) => s.setPlaylist);
-  const playSongAtIndex = usePlayerStore((s) => s.playSongAtIndex);
+  const playSingleSong = usePlayerStore((s) => s.playSingleSong);
 
   useEffect(() => {
     let mounted = true;
@@ -115,10 +115,11 @@ export function MobileSearch({ initialQuery }: Props) {
     handleSearchDebounced(query);
   }, [query, handleSearchDebounced]);
 
-  const handlePlaySong = (index: number) => {
+  const handlePlaySong = async (index: number) => {
+    console.log('[MobileSearch] handlePlaySong:', index, results[index]?.name);
     if (!results.length) return;
     setPlaylist(results);
-    playSongAtIndex(index);
+    await playSingleSong(results[index]);
   };
 
   const handleClear = () => {
@@ -128,9 +129,9 @@ export function MobileSearch({ initialQuery }: Props) {
     setSearched(false);
   };
 
-  const handlePlayRecommendation = (index: number) => {
+  const handlePlayRecommendation = async (index: number) => {
     setPlaylist(recommendations);
-    playSongAtIndex(index);
+    await playSingleSong(recommendations[index]);
   };
 
   const clearHistory = () => {

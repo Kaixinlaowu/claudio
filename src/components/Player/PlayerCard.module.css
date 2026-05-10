@@ -8,11 +8,11 @@
   pointer-events: none;
 }
 
-/* Compact vinyl for smaller displays if needed */
-.vinylContainer {
+/* Square cover container */
+.coverContainer {
   position: relative;
-  width: var(--vinyl-size, min(240px, 45vw));
-  height: var(--vinyl-size, min(240px, 45vw));
+  width: var(--cover-size, min(280px, 50vw));
+  height: var(--cover-size, min(280px, 50vw));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21,73 +21,71 @@
   pointer-events: auto;
 }
 
-.vinyl {
-  position: absolute;
+.cover {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    var(--bg-elevated) 0%,
-    var(--bg-highlight) 50%,
-    var(--bg-elevated) 100%
-  );
+  border-radius: var(--radius-xl);
+  object-fit: cover;
   box-shadow:
-    0 0 0 3px var(--bg-hover),
-    0 0 0 6px var(--bg-highlight),
-    0 8px 32px rgba(0, 0, 0, 0.6);
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo);
+  animation: coverIn 0.5s var(--ease-out-expo) both;
+}
+
+.cover.playing {
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 60px var(--accent-dynamic-glow);
+}
+
+.coverChange {
+  animation: coverIn 0.5s var(--ease-out-expo) both;
+}
+
+.coverPlaceholder {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-highlight));
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: vinylIn 0.5s var(--ease-out-expo) both;
-  transition: box-shadow var(--duration-normal) var(--ease-out-expo);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.vinyl.spinning {
-  animation: spin 3s linear infinite, vinylIn 0.5s var(--ease-out-expo) both;
+.placeholderIcon {
+  font-size: 64px;
+  color: var(--text-muted);
+  opacity: 0.4;
 }
 
-.vinylCenter {
-  width: 20%;
-  height: 20%;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: 50%;
-  background: var(--bg-highlight);
-  border: 2px solid var(--text-tertiary);
-  z-index: 2;
-}
-
-.vinylGroove {
+.playingGlow {
   position: absolute;
-  width: 70%;
-  height: 70%;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  inset: -20px;
+  border-radius: var(--radius-xl);
+  background: var(--accent-dynamic);
+  opacity: 0.08;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -1;
+  animation: glowPulse 3s ease-in-out infinite;
 }
 
-.coverArt {
-  position: absolute;
-  width: 80%;
-  height: 80%;
-  border-radius: 50%;
-  object-fit: cover;
-  z-index: 1;
-  border: 3px solid var(--bg-base);
-}
-
-.coverArt.songChange {
-  animation: coverIn 0.5s var(--ease-out-expo) both;
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.06; }
+  50% { opacity: 0.12; }
 }
 
 @keyframes coverIn {
   0% {
     opacity: 0;
-    transform: scale(0.6) rotate(-30deg);
+    transform: scale(0.85);
   }
   100% {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
+    transform: scale(1);
   }
 }
 
@@ -127,37 +125,4 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
   font-weight: 400;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes vinylIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.85) rotate(-20deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow:
-      0 0 20px rgba(29, 185, 84, 0.3),
-      0 0 40px rgba(29, 185, 84, 0.1);
-  }
-  50% {
-    box-shadow:
-      0 0 30px rgba(29, 185, 84, 0.5),
-      0 0 60px rgba(29, 185, 84, 0.2);
-  }
 }

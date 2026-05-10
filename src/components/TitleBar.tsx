@@ -1,7 +1,7 @@
 import { Minus, Square, X } from 'lucide-react';
 import styles from './TitleBar.module.css';
 
-const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 
 async function getAppWindow() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');

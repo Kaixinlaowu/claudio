@@ -23,12 +23,12 @@ export function MobileApp() {
   const [showQueue, setShowQueue] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const currentSong = usePlayerStore((s) => s.currentSong);
-  const loadHistoryAsPlaylist = usePlayerStore((s) => s.loadHistoryAsPlaylist);
+  const loadPlayHistory = usePlayerStore((s) => s.loadPlayHistory);
   const loadLikedSongs = usePlayerStore((s) => s.loadLikedSongs);
   const loadPlaylists = usePlaylistStore((s) => s.loadPlaylists);
 
   useEffect(() => {
-    loadHistoryAsPlaylist();
+    loadPlayHistory();
     loadLikedSongs();
     loadPlaylists();
   }, []);

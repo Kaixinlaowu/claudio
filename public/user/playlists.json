@@ -1,0 +1,42 @@
+{
+  "playlists": [
+    {
+      "id": "morning-jazz",
+      "name": "清晨爵士",
+      "description": "轻松唤醒的早晨爵士",
+      "tags": ["爵士", "早晨", "轻松"]
+    },
+    {
+      "id": "work-focus",
+      "name": "工作专注",
+      "description": "工作时帮助专注的背景音乐",
+      "tags": ["爵士", "古典", "lo-fi", "专注"]
+    },
+    {
+      "id": "evening-chill",
+      "name": "晚间放松",
+      "description": "下班后的轻松音乐",
+      "tags": ["爵士", "氛围", "放松"]
+    },
+    {
+      "id": "late-night",
+      "name": "深夜原声",
+      "description": "安静的深夜音乐",
+      "tags": ["原声", "安静", "抒情"]
+    }
+  ],
+  "favorite_songs": [
+    {
+      "query": "Bill Evans Waltz for Debby",
+      "reason": "最喜欢的爵士钢琴曲"
+    },
+    {
+      "query": "Chopin Nocturne",
+      "reason": "肖邦夜曲适合夜晚"
+    },
+    {
+      "query": "Lo-fi hip hop chill",
+      "reason": "工作时的好陪伴"
+    }
+  ]
+}

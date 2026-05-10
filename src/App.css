@@ -12,29 +12,27 @@
   position: relative;
 }
 
-/* Full-screen cover background on .app (covers footer area too) */
+/* Full-screen dynamic gradient background */
 .app::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: var(--cover-url);
-  background-size: cover;
-  background-position: center;
-  opacity: 0.35;
+  background:
+    radial-gradient(ellipse at 20% 50%, var(--accent-bg-1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, var(--accent-bg-2) 0%, transparent 50%),
+    var(--cover-url) center / cover no-repeat,
+    var(--bg-base);
   pointer-events: none;
   z-index: 0;
+  transition: background 1.5s ease;
 }
 
 .app::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.6) 0%,
-    rgba(0, 0, 0, 0.3) 50%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
+  background:
+    radial-gradient(circle at 50% 100%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.2) 100%);
   pointer-events: none;
   z-index: 0;
 }
@@ -50,19 +48,6 @@
   position: relative;
   min-height: 0;
   z-index: 1;
-}
-
-/* 背景遮罩 - 可点击关闭播放队列 */
-.mainOverlay {
-  display: none;
-}
-
-.mainOverlay.visible {
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  cursor: pointer;
 }
 
 /* Cover background removed - now on .app::before/::after */
@@ -94,15 +79,28 @@
 
 /* Right Panel - Frosted Glass */
 .sidePanel {
-  background: rgba(18, 18, 18, 0.65);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   max-width: 380px;
+  position: relative;
   transition: transform var(--duration-slow) var(--ease-out-expo), opacity var(--duration-slow) var(--ease-out-expo);
+}
+
+.sidePanel::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background:
+    radial-gradient(ellipse at 20% 50%, var(--accent-bg-1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, var(--accent-bg-2) 0%, transparent 50%),
+    var(--cover-url) center / cover no-repeat,
+    var(--bg-base);
+  filter: blur(40px) saturate(180%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .sidePanel.hidden {
@@ -122,9 +120,7 @@
   transform: translateY(-50%);
   width: 24px;
   height: 64px;
-  background: rgba(18, 18, 18, 0.75);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  background: var(--glass-bg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-right: none;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
@@ -133,9 +129,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   transition: opacity 0.3s ease, background var(--transition-fast);
   z-index: 50;
   opacity: 0;
+  pointer-events: none;
+}
+
+.revealBtn::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  background:
+    radial-gradient(ellipse at 20% 50%, var(--accent-bg-1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, var(--accent-bg-2) 0%, transparent 50%),
+    var(--cover-url) center / cover no-repeat,
+    var(--bg-base);
+  filter: blur(20px) saturate(150%);
+  z-index: -1;
   pointer-events: none;
 }
 
@@ -154,7 +165,7 @@
   position: absolute;
   right: 0;
   top: 0;
-  width: 48px;
+  width: 24px;
   height: 100%;
   z-index: 49;
 }
@@ -234,18 +245,31 @@
 /* Bottom Player Bar - Frosted Glass */
 .playerBar {
   height: 110px;
-  background: rgba(18, 18, 18, 0.6);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   align-items: center;
   padding: 0 var(--space-6);
   gap: var(--space-4);
   position: relative;
+  overflow: hidden;
   z-index: 200;
   transition: transform 0.4s var(--ease-out-expo);
+}
+
+.playerBar::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background:
+    radial-gradient(ellipse at 20% 50%, var(--accent-bg-1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, var(--accent-bg-2) 0%, transparent 50%),
+    var(--cover-url) center / cover no-repeat,
+    var(--bg-base);
+  filter: blur(40px) saturate(180%);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .playerBar.hidden {
@@ -374,4 +398,15 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* Native backdrop-filter fallback — hide polyfill when supported */
+@supports (backdrop-filter: blur(1px)) {
+  .sidePanel, .playerBar, .revealBtn {
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+  }
+  .sidePanel::before, .playerBar::before, .revealBtn::before {
+    display: none;
+  }
 }

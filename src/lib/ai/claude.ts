@@ -200,7 +200,7 @@ function normalizeActions<T extends Record<string, unknown>>(
   return result.length > 0 ? result : undefined;
 }
 
-const PLAY_ACTIONS = ['play', 'pause', 'next', 'prev', 'volume_up', 'volume_down', 'mode'] as const;
+const PLAY_ACTIONS = ['play', 'pause', 'next', 'prev', 'volume_up', 'volume_down', 'mode', 'set_volume', 'like'] as const;
 const QUEUE_ACTIONS = ['add', 'insert_next', 'remove_index', 'clear', 'play_index', 'describe'] as const;
 const PLAYLIST_ACTIONS = ['create', 'add_song', 'remove_song', 'play_playlist'] as const;
 
@@ -232,7 +232,7 @@ function normalizePlaylistAction(playlist: unknown) {
 
 function normalizePlayerAction(player: unknown) {
   return normalizeActions(player, PLAY_ACTIONS, (item) => ({
-    action: item.action as 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode',
+    action: item.action as 'play' | 'pause' | 'next' | 'prev' | 'volume_up' | 'volume_down' | 'mode' | 'set_volume' | 'like',
     value: typeof item.value === 'string' ? item.value : undefined,
   }));
 }

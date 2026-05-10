@@ -22,6 +22,7 @@ pub struct NeteaseArtist {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NeteaseAlbum {
     pub name: String,
+    #[serde(alias = "picUrl")]
     pub pic_url: Option<String>,
 }
 
@@ -237,7 +238,7 @@ pub async fn netease_lyric(id: String) -> Result<String, String> {
     let resp = client
         .get("https://music.163.com/api/song/lyric")
         .headers(headers)
-        .query(&[("id", &id), ("lv", &"1".to_string()), ("kv", &"1".to_string())])
+        .query(&[("id", &id), ("lv", &"1".to_string()), ("kv", &"1".to_string()), ("tv", &"1".to_string())])
         .send()
         .await
         .map_err(|e| e.to_string())?;

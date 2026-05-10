@@ -4,9 +4,11 @@ mod netease;
 use chrono::Utc;
 use rusqlite::{Connection, params, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{State, Manager};
 use tokio::sync::Mutex;
 use thiserror::Error;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Error, Debug)]
 pub enum DbError {
@@ -52,6 +54,7 @@ pub struct SongMeta {
     pub album: String,
     pub cover_url: Option<String>,
     pub duration: Option<i64>,
+    pub local_cover: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -165,6 +168,16 @@ fn migrate_v2(conn: &Connection) -> SqliteResult<()> {
     Ok(())
 }
 
+fn migrate_v3(conn: &Connection) -> SqliteResult<()> {
+    // Add local_cover column to songs table
+    conn.execute(
+        "ALTER TABLE songs ADD COLUMN local_cover TEXT",
+        [],
+    ).ok(); // Ignore if column already exists
+    log::info!("Database migration v3 completed");
+    Ok(())
+}
+
 #[tauri::command]
 async fn add_play_record(state: State<'_, AppState>, record: PlayRecord) -> Result<PlayRecord, DbError> {
     let conn = state.db.lock().await;
@@ -193,6 +206,13 @@ async fn add_play_record(state: State<'_, AppState>, record: PlayRecord) -> Resu
         played_at: Some(Utc::now().to_rfc3339()),
         ..record
     })
+}
+
+#[tauri::command]
+async fn delete_play_record(state: State<'_, AppState>, id: i64) -> Result<(), DbError> {
+    let conn = state.db.lock().await;
+    conn.execute("DELETE FROM plays WHERE id = ?1", params![id])?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -325,15 +345,16 @@ async fn get_preference(state: State<'_, AppState>, key: String) -> Result<Optio
 async fn upsert_song(state: State<'_, AppState>, song: SongMeta) -> Result<(), DbError> {
     let conn = state.db.lock().await;
     conn.execute(
-        "INSERT INTO songs (song_id, name, artist, album, cover_url, duration)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO songs (song_id, name, artist, album, cover_url, duration, local_cover)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(song_id) DO UPDATE SET
            name = excluded.name, artist = excluded.artist, album = excluded.album,
            cover_url = excluded.cover_url, duration = excluded.duration,
+           local_cover = COALESCE(excluded.local_cover, songs.local_cover),
            updated_at = CURRENT_TIMESTAMP",
         params![
             &song.song_id, &song.name, &song.artist, &song.album,
-            &song.cover_url, song.duration.unwrap_or(0),
+            &song.cover_url, song.duration.unwrap_or(0), &song.local_cover,
         ],
     )?;
     Ok(())
@@ -345,7 +366,7 @@ async fn get_songs_by_ids(state: State<'_, AppState>, ids: Vec<String>) -> Resul
     let conn = state.db.lock().await;
     let placeholders: Vec<String> = ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
     let sql = format!(
-        "SELECT song_id, name, artist, album, cover_url, duration FROM songs WHERE song_id IN ({})",
+        "SELECT song_id, name, artist, album, cover_url, duration, local_cover FROM songs WHERE song_id IN ({})",
         placeholders.join(",")
     );
     let params_val: Vec<Box<dyn rusqlite::types::ToSql>> = ids.into_iter()
@@ -361,6 +382,7 @@ async fn get_songs_by_ids(state: State<'_, AppState>, ids: Vec<String>) -> Resul
             album: row.get(3)?,
             cover_url: row.get(4)?,
             duration: row.get(5)?,
+            local_cover: row.get(6)?,
         })
     })?.collect::<Result<Vec<_>, _>>()?;
     Ok(songs)
@@ -399,6 +421,64 @@ fn check_cookie_status() -> Result<String, String> {
     config::check_cookie_status()
 }
 
+#[tauri::command]
+async fn cache_cover(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    song_id: String,
+    cover_url: String,
+) -> Result<Option<String>, String> {
+    if cover_url.is_empty() {
+        return Ok(None);
+    }
+
+    let covers_dir = app_handle.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("covers");
+    std::fs::create_dir_all(&covers_dir).map_err(|e| e.to_string())?;
+
+    let mut hasher = DefaultHasher::new();
+    cover_url.hash(&mut hasher);
+    let hash = format!("{:016x}", hasher.finish());
+    let ext = if cover_url.contains(".png") { "png" } else { "jpg" };
+    let filename = format!("{}.{}", hash, ext);
+    let local_path = covers_dir.join(&filename);
+
+    if local_path.exists() {
+        let path_str = local_path.to_string_lossy().to_string();
+        let conn = state.db.lock().await;
+        conn.execute(
+            "UPDATE songs SET local_cover = ?1 WHERE song_id = ?2 AND (local_cover IS NULL OR local_cover = '')",
+            params![&path_str, &song_id],
+        ).ok();
+        return Ok(Some(path_str));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(&cover_url)
+        .send().await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    std::fs::write(&local_path, &bytes).map_err(|e| e.to_string())?;
+
+    let path_str = local_path.to_string_lossy().to_string();
+    let conn = state.db.lock().await;
+    conn.execute(
+        "UPDATE songs SET local_cover = ?1 WHERE song_id = ?2",
+        params![&path_str, &song_id],
+    ).ok();
+
+    Ok(Some(path_str))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_dir = dirs::data_local_dir()
@@ -416,6 +496,7 @@ pub fn run() {
     });
     init_db(&conn).ok();
     migrate_v2(&conn).ok();
+    migrate_v3(&conn).ok();
 
     let app_state = AppState {
         db: Mutex::new(conn),
@@ -430,6 +511,7 @@ pub fn run() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             add_play_record,
+            delete_play_record,
             get_play_history,
             get_liked_songs,
             toggle_like,
@@ -449,6 +531,7 @@ pub fn run() {
             get_songs_by_ids,
             save_playlist_songs,
             get_playlist_song_ids,
+            cache_cover,
 
             netease::tts_synthesize,
         ])

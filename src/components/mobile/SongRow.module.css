@@ -8,6 +8,13 @@
   animation: rowSlideIn var(--duration-normal) var(--ease-out-expo) both;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  /* button reset */
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
 }
 
 .row:active {
