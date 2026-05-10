@@ -18,11 +18,8 @@ src-tauri/gen
 dist
 dist-ssr
 *.local
+release
 realease
-
-# Release folder — keep installer, exclude debug artifacts
-release/app.exe
-release/bundle/
 *.pdb
 *.dmg
 *.AppImage
