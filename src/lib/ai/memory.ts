@@ -143,7 +143,7 @@ async function consolidateEntries(store: MemoryStore, entries: string[]): Promis
 /**
  * Replace an entry using substring matching.
  */
-async function replaceEntry(storeKey: 'agent' | 'user', oldTextSubstring: string, newContent: string): Promise<boolean> {
+export async function replaceEntry(storeKey: 'agent' | 'user', oldTextSubstring: string, newContent: string): Promise<boolean> {
   const store = STORES[storeKey];
   const sanitized = sanitizeEntry(newContent);
   if (!sanitized) return false;
@@ -161,7 +161,7 @@ async function replaceEntry(storeKey: 'agent' | 'user', oldTextSubstring: string
 /**
  * Remove an entry using substring matching.
  */
-async function removeEntry(storeKey: 'agent' | 'user', oldTextSubstring: string): Promise<boolean> {
+export async function removeEntry(storeKey: 'agent' | 'user', oldTextSubstring: string): Promise<boolean> {
   const store = STORES[storeKey];
   const entries = await loadEntries(store);
   const idx = entries.findIndex(e => e.includes(oldTextSubstring));
